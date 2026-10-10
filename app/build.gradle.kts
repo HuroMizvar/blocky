@@ -24,6 +24,8 @@ android {
         versionName = "1.0.$buildNumber"
         buildConfigField("String", "GH_REPO", "\"$ghRepo\"")
         buildConfigField("String", "GH_TOKEN", "\"$ghToken\"")
+        // len ARM telefóny (x86 je pre emulátory) – menšie APK
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     // Pevný testovací kľúč v repozitári: všetky buildy (CI aj lokálne) majú rovnaký podpis,
@@ -38,8 +40,12 @@ android {
     }
 
     buildTypes {
+        // CI zostavuje „debug“ verziu – zapnuté zmenšenie kódu (R8) a zdrojov, aby APK malo pár MB, nie 40.
         debug {
             signingConfig = signingConfigs.getByName("test")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         release {
             signingConfig = signingConfigs.getByName("test")

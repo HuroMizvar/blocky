@@ -55,7 +55,7 @@ private fun UpdateSection(vm: MainViewModel) {
             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)); Text("Kontrolujem…")
         }
         UpdateUi.UpToDate -> {
-            Text("✓ Máte najnovšiu verziu.")
+            Text("Máte najnovšiu verziu.", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
             TextButton(onClick = { vm.checkUpdate() }) { Text("Skontrolovať znova") }
         }
         is UpdateUi.Error -> {
@@ -145,7 +145,7 @@ private fun TestSection(vm: MainViewModel) {
         ScanUi.Loading -> Text("Spracúvam…", Modifier.padding(top = 8.dp))
         is ScanUi.Done -> {
             val (text, isErr) = when (val r = s.result) {
-                is ScanResult.Saved -> "✓ Uložené: ${r.merchant}, ${r.items} položiek, ${eur(r.totalCents)}" to false
+                is ScanResult.Saved -> "Uložené: ${r.merchant}, ${r.items} položiek, ${eur(r.totalCents)}" to false
                 is ScanResult.Duplicate -> "Už uložené: ${r.receiptId}" to false
                 is ScanResult.Error -> r.message to true
             }

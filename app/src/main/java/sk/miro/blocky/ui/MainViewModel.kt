@@ -38,6 +38,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }.flowOn(Dispatchers.Default)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardState())
 
+    /** Súčet za aktuálny mesiac – zobrazuje sa na skeneri. */
+    val monthTotal: StateFlow<Long> = rows.map { r ->
+        val now = YearMonth.now()
+        r.filter { Analytics.monthOf(it.issuedAt) == now }.sumOf { it.priceCents }
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
     private val _scan = MutableStateFlow<ScanUi>(ScanUi.Idle)
     val scan: StateFlow<ScanUi> = _scan
 
@@ -182,11 +188,11 @@ enum class BannerKind { WAIT, OK, INFO, ERROR }
 data class ScanBanner(val scanId: Int, val kind: BannerKind, val title: String, val sub: String?, val receiptDbId: Long?)
 
 fun PendingScanEntity.toBanner(scanId: Int): ScanBanner = when (status) {
-    "DONE" -> if (receiptDbId != null) ScanBanner(scanId, BannerKind.OK, "✓ Uložené", message, receiptDbId)
+    "DONE" -> if (receiptDbId != null) ScanBanner(scanId, BannerKind.OK, "Uložené", message, receiptDbId)
               else ScanBanner(scanId, BannerKind.INFO, "Tento bloček už máte", null, null)
     "FAILED" -> ScanBanner(scanId, BannerKind.ERROR, "Bloček sa nepodarilo načítať", message, null)
-    else -> if (attempts == 0) ScanBanner(scanId, BannerKind.WAIT, "✓ Bloček prijatý",
+    else -> if (attempts == 0) ScanBanner(scanId, BannerKind.WAIT, "Bloček prijatý",
                 "Načítavam položky… Aplikáciu môžete zavrieť.", null)
-            else ScanBanner(scanId, BannerKind.WAIT, "✓ Bloček prijatý – položky načítam neskôr",
+            else ScanBanner(scanId, BannerKind.WAIT, "Prijatý – položky načítam neskôr",
                 message ?: "Skúsim to znova automaticky.", null)
 }

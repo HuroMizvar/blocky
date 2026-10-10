@@ -10,8 +10,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.foundation.layout.Column
+import androidx.activity.SystemBarStyle
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.core.content.FileProvider
 import androidx.navigation.NavType
@@ -21,7 +33,7 @@ import sk.miro.blocky.ui.*
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     REPORT("report", "Prehľad", Icons.Default.BarChart),
-    TIPS("tips", "Odporúčania", Icons.Default.Lightbulb),
+    TIPS("tips", "Tipy", Icons.Default.Lightbulb),
     RECEIPTS("receipts", "Bločky", Icons.AutoMirrored.Filled.ReceiptLong),
     BUDGETS("budgets", "Rozpočty", Icons.Default.Savings)
 }
@@ -41,10 +53,13 @@ class MainActivity : ComponentActivity() {
         if (stoppedAt > 0 && System.currentTimeMillis() - stoppedAt > 60_000) returnToScan.intValue++
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // svetlý dizajn → tmavé ikony v stavovom a navigačnom riadku
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(android.graphics.Color.WHITE, android.graphics.Color.WHITE)
+        )
         setContent {
             BlockyTheme {
                 val nav = rememberNavController()
@@ -60,6 +75,7 @@ class MainActivity : ComponentActivity() {
                 // Na skeneri nerušiť – dialóg sa ukáže až v Prehľade / ostatných obrazovkách.
                 if (route != "scan" && prompt && update !is UpdateUi.Idle && update !is UpdateUi.UpToDate) AlertDialog(
                     onDismissRequest = vm::dismissUpdatePrompt,
+                    containerColor = Pal.Card,
                     title = { Text("Nová verzia aplikácie") },
                     text = {
                         Column {
@@ -81,51 +97,38 @@ class MainActivity : ComponentActivity() {
                 NavHost(nav, startDestination = "scan") {
                     Tab.entries.forEach { t ->
                         composable(t.route) {
-                            Scaffold(
-                                topBar = {
-                                    TopAppBar(title = { Text(t.label) }, actions = {
-                                        if (t == Tab.REPORT || t == Tab.RECEIPTS) IconButton(onClick = ::exportCsv) {
-                                            Icon(Icons.Default.Share, "Exportovať CSV")
-                                        }
-                                        IconButton(onClick = { nav.navigate("settings") }) {
-                                            BadgedBox(badge = { if (hasUpdate || mock) Badge() }) {
-                                                Icon(Icons.Default.Settings, "Nastavenia")
-                                            }
-                                        }
-                                    })
-                                },
-                                bottomBar = {
-                                    NavigationBar {
-                                        Tab.entries.forEach { item ->
-                                            NavigationBarItem(
-                                                selected = tab == item,
-                                                onClick = {
-                                                    nav.navigate(item.route) {
-                                                        popUpTo("scan") { saveState = true }
-                                                        launchSingleTop = true; restoreState = true
-                                                    }
-                                                },
-                                                icon = { Icon(item.icon, null) },
-                                                label = { Text(item.label) }
-                                            )
-                                        }
+                            val actions: @Composable RowScope.() -> Unit = {
+                                if (t == Tab.REPORT || t == Tab.RECEIPTS) IconButton(onClick = ::exportCsv) {
+                                    Icon(Icons.Default.IosShare, "Exportovať CSV", tint = Pal.Ink)
+                                }
+                                IconButton(onClick = { nav.navigate("settings") }) {
+                                    BadgedBox(badge = { if (hasUpdate || mock) Badge(containerColor = Pal.Green) }) {
+                                        Icon(Icons.Default.Settings, "Nastavenia", tint = Pal.Ink)
                                     }
-                                },
-                                floatingActionButton = {
-                                    ExtendedFloatingActionButton(
-                                        onClick = {
-                                            nav.navigate("scan") { popUpTo("scan") { inclusive = false }; launchSingleTop = true }
+                                }
+                            }
+                            Scaffold(
+                                containerColor = Pal.Bg,
+                                bottomBar = {
+                                    BottomBar(current = tab,
+                                        onTab = { item ->
+                                            nav.navigate(item.route) {
+                                                popUpTo("scan") { saveState = true }
+                                                launchSingleTop = true; restoreState = true
+                                            }
                                         },
-                                        icon = { Icon(Icons.Default.QrCodeScanner, null) },
-                                        text = { Text("Skenovať") }
-                                    )
+                                        onScan = { nav.navigate("scan") { popUpTo("scan") { inclusive = false }; launchSingleTop = true } })
                                 }
                             ) { pad ->
                                 when (t) {
-                                    Tab.REPORT -> ReportScreen(vm, pad)
-                                    Tab.TIPS -> RecommendationsScreen(vm, pad)
-                                    Tab.RECEIPTS -> ReceiptsScreen(vm, pad) { id -> nav.navigate("receipt/$id") }
-                                    Tab.BUDGETS -> BudgetsScreen(vm, pad)
+                                    Tab.REPORT -> ReportScreen(vm, pad,
+                                        onOpenTips = { nav.navigate(Tab.TIPS.route) { popUpTo("scan") { saveState = true }; launchSingleTop = true } },
+                                        onOpenBudgets = { nav.navigate(Tab.BUDGETS.route) { popUpTo("scan") { saveState = true }; launchSingleTop = true } },
+                                        onScan = { nav.navigate("scan") { popUpTo("scan") { inclusive = false }; launchSingleTop = true } },
+                                        actions = actions)
+                                    Tab.TIPS -> RecommendationsScreen(vm, pad, actions)
+                                    Tab.RECEIPTS -> ReceiptsScreen(vm, pad, onOpen = { id -> nav.navigate("receipt/$id") }, actions = actions)
+                                    Tab.BUDGETS -> BudgetsScreen(vm, pad, actions)
                                 }
                             }
                         }
@@ -138,6 +141,38 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("receipt/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                         ReceiptDetailScreen(vm, it.arguments!!.getLong("id")) { nav.popBackStack() }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun BottomBar(current: Tab?, onTab: (Tab) -> Unit, onScan: () -> Unit) {
+        Column(Modifier.fillMaxWidth().background(Pal.Card)) {
+            HorizontalDivider(color = Pal.Line)
+            Row(Modifier.fillMaxWidth().navigationBarsPadding().height(72.dp), verticalAlignment = Alignment.CenterVertically) {
+                val slots = listOf(Tab.REPORT, Tab.TIPS, null, Tab.RECEIPTS, Tab.BUDGETS)
+                slots.forEach { t ->
+                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                        if (t == null) {
+                            Box(Modifier.offset(y = (-14).dp).size(60.dp)
+                                .shadow(10.dp, RoundedCornerShape(20.dp), ambientColor = Pal.Green, spotColor = Pal.Green)
+                                .clip(RoundedCornerShape(20.dp)).background(Pal.Green)
+                                .clickable(onClickLabel = "Skenovať", onClick = onScan), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.QrCodeScanner, "Skenovať", tint = Color.White, modifier = Modifier.size(28.dp))
+                            }
+                        } else {
+                            val sel = current == t
+                            val col = if (sel) Pal.Green else Pal.Muted
+                            Column(Modifier.fillMaxSize().clickable { onTab(t) },
+                                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                Icon(t.icon, null, tint = col, modifier = Modifier.size(24.dp))
+                                Spacer(Modifier.height(4.dp))
+                                Text(t.label, color = col, fontSize = 11.sp,
+                                    fontWeight = if (sel) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1)
+                            }
+                        }
                     }
                 }
             }
