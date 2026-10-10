@@ -1,0 +1,48 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rozbalit nahraty ZIP
+        if: hashFiles('blocky.zip') != ''
+        run: |
+          unzip -o -q blocky.zip && rm blocky.zip
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Rozbaleny projekt z blocky.zip"
+          git push
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Testy a APK
+        env:
+          UPDATE_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk "blocky-$GITHUB_RUN_NUMBER.apk"
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MSG: ${{ github.event.head_commit.message }}
+        run: |
+          gh release create "b$GITHUB_RUN_NUMBER" "blocky-$GITHUB_RUN_NUMBER.apk" --title "Build $GITHUB_RUN_NUMBER" --notes "${MSG:-Build}" --latest
+          gh release list --limit 100 --json tagName --jq '.[10:][].tagName' | xargs -r -n1 gh release delete --cleanup-tag --yes
