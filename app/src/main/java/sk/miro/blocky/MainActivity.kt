@@ -28,6 +28,18 @@ private enum class Tab(val route: String, val label: String, val icon: ImageVect
 
 class MainActivity : ComponentActivity() {
     private val vm: MainViewModel by viewModels()
+    private val returnToScan = mutableIntStateOf(0)
+    private var stoppedAt = 0L
+
+    override fun onStop() {
+        super.onStop()
+        stoppedAt = System.currentTimeMillis()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (stoppedAt > 0 && System.currentTimeMillis() - stoppedAt > 60_000) returnToScan.intValue++
+    }
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,7 +57,8 @@ class MainActivity : ComponentActivity() {
                 val hasUpdate = update is UpdateUi.Available || update is UpdateUi.ReadyToInstall
 
                 // Dialóg po automatickej kontrole pri štarte – sťahovanie aj inštalácia priamo v ňom.
-                if (prompt && update !is UpdateUi.Idle && update !is UpdateUi.UpToDate) AlertDialog(
+                // Na skeneri nerušiť – dialóg sa ukáže až v Prehľade / ostatných obrazovkách.
+                if (route != "scan" && prompt && update !is UpdateUi.Idle && update !is UpdateUi.UpToDate) AlertDialog(
                     onDismissRequest = vm::dismissUpdatePrompt,
                     title = { Text("Nová verzia aplikácie") },
                     text = {
@@ -57,7 +70,15 @@ class MainActivity : ComponentActivity() {
                     confirmButton = { TextButton(onClick = vm::dismissUpdatePrompt) { Text("Neskôr") } }
                 )
 
-                NavHost(nav, startDestination = Tab.REPORT.route) {
+                // Po návrate z pozadia (>1 min) vždy otvoriť skener
+                val reset by returnToScan
+                LaunchedEffect(reset) {
+                    if (reset > 0 && nav.currentDestination?.route != "scan") nav.navigate("scan") {
+                        popUpTo("scan") { inclusive = false }; launchSingleTop = true
+                    }
+                }
+
+                NavHost(nav, startDestination = "scan") {
                     Tab.entries.forEach { t ->
                         composable(t.route) {
                             Scaffold(
@@ -80,7 +101,7 @@ class MainActivity : ComponentActivity() {
                                                 selected = tab == item,
                                                 onClick = {
                                                     nav.navigate(item.route) {
-                                                        popUpTo(Tab.REPORT.route) { saveState = true }
+                                                        popUpTo("scan") { saveState = true }
                                                         launchSingleTop = true; restoreState = true
                                                     }
                                                 },
@@ -92,7 +113,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 floatingActionButton = {
                                     ExtendedFloatingActionButton(
-                                        onClick = { nav.navigate("scan") },
+                                        onClick = {
+                                            nav.navigate("scan") { popUpTo("scan") { inclusive = false }; launchSingleTop = true }
+                                        },
                                         icon = { Icon(Icons.Default.QrCodeScanner, null) },
                                         text = { Text("Skenovať") }
                                     )
@@ -109,9 +132,9 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("settings") { SettingsScreen(vm) { nav.popBackStack() } }
                     composable("scan") {
-                        ScannerScreen(vm, onBack = { nav.popBackStack() }) { id ->
-                            nav.navigate("receipt/$id")
-                        }
+                        ScannerScreen(vm, onOpenApp = {
+                            nav.navigate(Tab.REPORT.route) { launchSingleTop = true }
+                        }) { id -> nav.navigate("receipt/$id") }
                     }
                     composable("receipt/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                         ReceiptDetailScreen(vm, it.arguments!!.getLong("id")) { nav.popBackStack() }

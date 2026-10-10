@@ -4,6 +4,13 @@ Naskenujete QR kód z pokladničného dokladu → aplikácia stiahne z portálu 
 (eKasa) všetky položky a ceny → každú položku zaradí do kategórie → mesačne vyhodnotí výdavky
 a navrhne, kde ušetriť.
 
+## Rýchle skenovanie
+Aplikácia sa vždy otvorí rovno na skeneri (aj po návrate z pozadia po viac ako 1 minúte).
+Po rozpoznaní QR telefón zavibruje a sken sa hneď uloží – aplikáciu môžete okamžite zavrieť.
+Položky z eKasa sa načítajú na pozadí (WorkManager, `data/FetchWorker.kt`); bez signálu
+alebo pri offline doklade, ktorý ešte nie je v eKasa, to aplikácia skúša automaticky znova.
+Čakajúce skeny sú vidieť v záložke **Bločky**.
+
 ## Funkcie
 | Oblasť | Čo robí |
 |---|---|

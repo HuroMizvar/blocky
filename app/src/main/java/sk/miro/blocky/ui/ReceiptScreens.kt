@@ -30,7 +30,8 @@ fun fmtDate(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDef
 @Composable
 fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Long) -> Unit) {
     val receipts by vm.receipts.collectAsState()
-    if (receipts.isEmpty()) {
+    val pending by vm.openPending.collectAsState()
+    if (receipts.isEmpty() && pending.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(contentPadding).padding(24.dp)) {
             Text("Zatiaľ žiadne bločky.")
         }
@@ -40,6 +41,21 @@ fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Lo
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(
         start = 16.dp, end = 16.dp, top = contentPadding.calculateTopPadding(),
         bottom = contentPadding.calculateBottomPadding() + 88.dp)) {
+        if (pending.isNotEmpty()) {
+            item(key = "pending-h") {
+                Text("Čaká na načítanie z eKasa (${pending.size})", Modifier.padding(top = 16.dp, bottom = 4.dp),
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            }
+            items(pending, key = { "p-" + it.raw }) { p ->
+                ListItem(
+                    headlineContent = { Text(if (p.status == "FAILED") "Nepodarilo sa načítať" else "Čaká – skúsi sa automaticky") },
+                    supportingContent = { Text(fmtDate(p.createdAt) + (p.message?.let { "\n$it" } ?: "")) },
+                    trailingContent = {
+                        IconButton(onClick = { vm.deletePending(p.raw) }) { Icon(Icons.Default.Delete, "Odstrániť") }
+                    }
+                )
+            }
+        }
         grouped.forEach { (month, list) ->
             item(key = "h$month") {
                 Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 4.dp)) {

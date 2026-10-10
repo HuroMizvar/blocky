@@ -13,10 +13,24 @@ import java.time.format.DateTimeFormatter
 sealed interface ScanResult {
     data class Saved(val receiptDbId: Long, val merchant: String, val totalCents: Long, val items: Int) : ScanResult
     data class Duplicate(val receiptId: String) : ScanResult
-    data class Error(val message: String) : ScanResult
+    data class Error(val message: String, val retryable: Boolean = false) : ScanResult
+}
+
+/** Výsledok okamžitého prijatia skenu (bez čakania na eKasa). */
+sealed interface EnqueueResult {
+    /** Sken je uložený vo fronte; [key] = kľúč riadku v pending_scans na sledovanie stavu. */
+    data class Accepted(val key: String) : EnqueueResult
+    data class AlreadyHave(val receiptDbId: Long?) : EnqueueResult
+    data class Invalid(val message: String) : EnqueueResult
 }
 
 class Repository(private val context: Context) {
+    companion object {
+        const val MOCK_PREFIX = "MOCK#"
+        /** pri exponenciálnom odstupe WorkManagera ≈ niekoľko dní pokusov */
+        const val MAX_ATTEMPTS = 25
+    }
+
     private val dao = AppDatabase.get(context).dao()
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
@@ -43,12 +57,62 @@ class Repository(private val context: Context) {
         val parsed = try {
             EkasaClient(endpoint).fetch(qr)
         } catch (e: EkasaException) {
-            return ScanResult.Error(e.message ?: "Chyba eKasa")
+            return ScanResult.Error(e.message ?: "Chyba eKasa", e.retryable)
         } catch (e: Exception) {
-            return ScanResult.Error("Chyba pripojenia: ${e.message ?: e.javaClass.simpleName}")
+            return ScanResult.Error("Bez pripojenia – načíta sa automaticky neskôr.", retryable = true)
         }
         if (dao.countByReceiptId(parsed.receiptId) > 0) return ScanResult.Duplicate(parsed.receiptId)
         return save(parsed, "EKASA")
+    }
+
+    // ---------- Rýchle skenovanie cez frontu ----------
+
+    val openPending = dao.openPending()
+    fun observePending(key: String) = dao.observePending(key)
+    suspend fun deletePending(key: String) = dao.deletePending(key)
+
+    /** Okamžite prijme QR (žiadna sieť), uloží do fronty a spustí načítanie na pozadí. */
+    suspend fun enqueue(raw: String): EnqueueResult {
+        val key = if (mockMode) "$MOCK_PREFIX${System.currentTimeMillis()}#$raw" else raw.trim()
+        if (!mockMode) {
+            val qr = EkasaQr.parse(key) ?: return EnqueueResult.Invalid("Toto nie je QR kód z bločku eKasa.")
+            if (qr is EkasaQr.Online && dao.countByReceiptId(qr.receiptId) > 0) return EnqueueResult.AlreadyHave(null)
+            dao.pending(key)?.let { existing ->
+                when (existing.status) {
+                    "DONE" -> return EnqueueResult.AlreadyHave(existing.receiptDbId)
+                    "FAILED" -> dao.updatePending(existing.copy(status = "PENDING", attempts = 0, message = null))
+                    else -> Unit // už čaká vo fronte
+                }
+                FetchWorker.enqueue(context)
+                return EnqueueResult.Accepted(key)
+            }
+        }
+        dao.insertPending(PendingScanEntity(key, System.currentTimeMillis(), "PENDING", 0, null, null))
+        FetchWorker.enqueue(context)
+        return EnqueueResult.Accepted(key)
+    }
+
+    /** Spracuje frontu. Vráti true, ak niečo ostalo na neskôr (worker naplánuje opakovanie). */
+    suspend fun processPending(): Boolean {
+        dao.cleanupDone(System.currentTimeMillis() - 2 * 24 * 3600_000L)
+        var retryLater = false
+        for (p in dao.pendingToProcess()) {
+            val result = if (p.raw.startsWith(MOCK_PREFIX))
+                save(DemoData.mockReceipt(p.raw), DemoData.SOURCE)
+            else scan(p.raw)
+            val updated = when (result) {
+                is ScanResult.Saved -> p.copy(status = "DONE", receiptDbId = result.receiptDbId,
+                    message = "${result.merchant} · ${result.items} pol. · ${sk.miro.blocky.domain.Analytics.eur(result.totalCents)}")
+                is ScanResult.Duplicate -> p.copy(status = "DONE", message = "Tento bloček už máte uložený.")
+                is ScanResult.Error ->
+                    if (result.retryable && p.attempts < MAX_ATTEMPTS) {
+                        retryLater = true
+                        p.copy(attempts = p.attempts + 1, message = result.message)
+                    } else p.copy(status = "FAILED", attempts = p.attempts + 1, message = result.message)
+            }
+            dao.updatePending(updated)
+        }
+        return retryLater
     }
 
     suspend fun addManual(merchant: String, totalCents: Long, category: Category, issuedAt: Long): ScanResult =
@@ -79,7 +143,11 @@ class Repository(private val context: Context) {
                 categoryManual = forced != null
             )
         }
-        val id = dao.insertReceiptWithItems(receipt, items)
+        val id = try {
+            dao.insertReceiptWithItems(receipt, items)
+        } catch (e: android.database.sqlite.SQLiteConstraintException) {
+            return ScanResult.Duplicate(p.receiptId) // súbežné uloženie toho istého bločku
+        }
         return ScanResult.Saved(id, p.merchantName, p.totalCents, items.size)
     }
 

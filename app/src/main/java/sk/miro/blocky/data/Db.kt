@@ -62,6 +62,21 @@ data class CategoryRuleEntity(
     val category: String
 )
 
+/**
+ * Fronta naskenovaných QR kódov. Sken sa uloží okamžite (aplikáciu možno hneď zavrieť),
+ * položky z eKasa sa načítajú na pozadí (FetchWorker) – aj neskôr, keď je signál.
+ * status: PENDING | DONE | FAILED
+ */
+@Entity(tableName = "pending_scans")
+data class PendingScanEntity(
+    @PrimaryKey val raw: String,
+    val createdAt: Long,
+    val status: String,
+    val attempts: Int,
+    val message: String?,
+    val receiptDbId: Long?
+)
+
 /** Riadok položky spojený s údajmi z bločku – základ všetkých analýz. */
 data class ItemRow(
     val itemId: Long,
@@ -109,6 +124,31 @@ abstract class BlockyDao {
     @Query("DELETE FROM receipts WHERE id = :id")
     abstract suspend fun deleteReceipt(id: Long)
 
+    // ---- fronta skenov ----
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun insertPending(p: PendingScanEntity): Long
+
+    @Update
+    abstract suspend fun updatePending(p: PendingScanEntity)
+
+    @Query("SELECT * FROM pending_scans WHERE raw = :raw")
+    abstract suspend fun pending(raw: String): PendingScanEntity?
+
+    @Query("SELECT * FROM pending_scans WHERE raw = :raw")
+    abstract fun observePending(raw: String): Flow<PendingScanEntity?>
+
+    @Query("SELECT * FROM pending_scans WHERE status = 'PENDING' ORDER BY createdAt")
+    abstract suspend fun pendingToProcess(): List<PendingScanEntity>
+
+    @Query("SELECT * FROM pending_scans WHERE status != 'DONE' ORDER BY createdAt DESC")
+    abstract fun openPending(): Flow<List<PendingScanEntity>>
+
+    @Query("DELETE FROM pending_scans WHERE raw = :raw")
+    abstract suspend fun deletePending(raw: String)
+
+    @Query("DELETE FROM pending_scans WHERE status = 'DONE' AND createdAt < :before")
+    abstract suspend fun cleanupDone(before: Long)
+
     @Query("DELETE FROM receipts WHERE source = :source")
     abstract suspend fun deleteBySource(source: String): Int
 
@@ -146,17 +186,30 @@ abstract class BlockyDao {
 }
 
 @Database(
-    entities = [ReceiptEntity::class, ItemEntity::class, BudgetEntity::class, CategoryRuleEntity::class],
-    version = 1,
+    entities = [ReceiptEntity::class, ItemEntity::class, BudgetEntity::class, CategoryRuleEntity::class,
+        PendingScanEntity::class],
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): BlockyDao
 
     companion object {
+        /** v2: fronta skenov – existujúce bločky ostávajú zachované */
+        val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `pending_scans` (`raw` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, " +
+                        "`status` TEXT NOT NULL, `attempts` INTEGER NOT NULL, `message` TEXT, `receiptDbId` INTEGER, " +
+                        "PRIMARY KEY(`raw`))"
+                )
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "blocky.db")
+                .addMigrations(MIGRATION_1_2)
                 .build().also { instance = it }
         }
     }

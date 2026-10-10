@@ -2,7 +2,9 @@ package sk.miro.blocky.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Size
+import android.view.HapticFeedbackConstants
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.*
@@ -15,7 +17,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FlashlightOff
 import androidx.compose.material.icons.filled.FlashlightOn
 import androidx.compose.material3.*
@@ -24,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -32,101 +37,104 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
-import sk.miro.blocky.data.ScanResult
+import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScannerScreen(vm: MainViewModel, onBack: () -> Unit, onOpenReceipt: (Long) -> Unit) {
+fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long) -> Unit) {
     val context = LocalContext.current
+    val view = LocalView.current
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
     LaunchedEffect(Unit) { if (!granted) launcher.launch(Manifest.permission.CAMERA) }
-    DisposableEffect(Unit) { onDispose { vm.resetScan() } }
 
-    val scan by vm.scan.collectAsState()
+    val banner by vm.banner.collectAsState()
     val mock by vm.mockMode.collectAsState()
     var torch by remember { mutableStateOf(false) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var manual by remember { mutableStateOf(false) }
 
+    // vibrácia pri každom novom skene; po dokončení pás po chvíli zmizne
+    LaunchedEffect(banner?.scanId) {
+        if (banner != null) view.performHapticFeedback(
+            if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.LONG_PRESS)
+    }
+    LaunchedEffect(banner) {
+        val b = banner ?: return@LaunchedEffect
+        if (b.kind != BannerKind.WAIT) { delay(if (b.kind == BannerKind.ERROR) 8000 else 5000); vm.clearBanner() }
+    }
+
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text(if (mock) "Skenovať (TEST)" else "Skenovať bloček") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Späť") } },
+            title = { Text(if (mock) "Bločky · TEST" else "Bločky") },
             actions = {
                 IconButton(onClick = { torch = !torch; camera?.cameraControl?.enableTorch(torch) }) {
                     Icon(if (torch) Icons.Default.FlashlightOff else Icons.Default.FlashlightOn, "Svetlo")
+                }
+                FilledTonalButton(onClick = onOpenApp, Modifier.padding(end = 8.dp)) {
+                    Icon(Icons.Default.BarChart, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Prehľad")
                 }
             }
         )
     }) { pad ->
         Box(Modifier.fillMaxSize().padding(pad).background(Color.Black)) {
             if (granted) {
-                CameraPreview(onCamera = { camera = it }) { raw ->
-                    if (vm.scan.value is ScanUi.Idle) vm.onQr(raw)
-                }
+                CameraPreview(onCamera = { camera = it }) { raw -> vm.onQrFast(raw) }
                 Box(Modifier.align(Alignment.Center).size(260.dp)
                     .border(3.dp, Color.White.copy(alpha = 0.85f), RoundedCornerShape(16.dp)))
                 if (mock) Surface(Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
                     color = MaterialTheme.colorScheme.tertiaryContainer, shape = RoundedCornerShape(8.dp)) {
                     Text("Testovací režim: akýkoľvek QR → demo nákup", Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
                 }
-                Text("Namierte na QR kód v spodnej časti bločku",
-                    Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp), color = Color.White)
             } else {
                 Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Aplikácia potrebuje prístup ku kamere.", color = Color.White)
                     Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text("Povoliť kameru") }
                 }
             }
-            OutlinedButton(onClick = { manual = true }, Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text("Zadať výdavok ručne") }
 
-            if (scan is ScanUi.Loading) {
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = Color.White)
-                        Spacer(Modifier.height(12.dp))
-                        Text("Načítavam bloček z eKasa…", color = Color.White)
-                    }
-                }
+            Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                val b = banner
+                if (b != null) ScanBannerCard(b, onOpen = { id -> vm.clearBanner(); onOpenReceipt(id) }, onClose = vm::clearBanner)
+                else Text("Namierte na QR kód v spodnej časti bločku", color = Color.White)
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = { manual = true },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color.White)) { Text("Bez QR? Zadať výdavok ručne") }
             }
         }
     }
 
-    (scan as? ScanUi.Done)?.result?.let { res ->
-        AlertDialog(
-            onDismissRequest = { vm.resetScan() },
-            title = {
-                Text(when (res) {
-                    is ScanResult.Saved -> "Bloček uložený"
-                    is ScanResult.Duplicate -> "Už naskenované"
-                    is ScanResult.Error -> "Nepodarilo sa"
-                })
-            },
-            text = {
-                Text(when (res) {
-                    is ScanResult.Saved -> "${res.merchant}\n${res.items} položiek · ${eur(res.totalCents)}"
-                    is ScanResult.Duplicate -> "Tento bloček už máte uložený."
-                    is ScanResult.Error -> res.message
-                })
-            },
-            confirmButton = {
-                TextButton(onClick = { vm.resetScan() }) { Text("Skenovať ďalší") }
-            },
-            dismissButton = {
-                if (res is ScanResult.Saved) TextButton(onClick = { vm.resetScan(); onOpenReceipt(res.receiptDbId) }) {
-                    Text("Zobraziť položky")
-                }
-            }
-        )
-    }
-
     if (manual) ManualEntryDialog(onDismiss = { manual = false }) { m, c, cat ->
-        vm.addManual(m, c, cat, System.currentTimeMillis()); manual = false; onBack()
+        vm.addManual(m, c, cat, System.currentTimeMillis()); manual = false
+    }
+}
+
+@Composable
+private fun ScanBannerCard(b: ScanBanner, onOpen: (Long) -> Unit, onClose: () -> Unit) {
+    val (bg, fg) = when (b.kind) {
+        BannerKind.OK, BannerKind.WAIT -> Color(0xFF2E7D32) to Color.White
+        BannerKind.INFO -> Color(0xFF37474F) to Color.White
+        BannerKind.ERROR -> Color(0xFFC62828) to Color.White
+    }
+    Surface(color = bg, contentColor = fg, shape = RoundedCornerShape(16.dp), shadowElevation = 6.dp,
+        modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (b.kind == BannerKind.WAIT) {
+                CircularProgressIndicator(Modifier.size(22.dp), color = fg, strokeWidth = 2.dp)
+                Spacer(Modifier.width(12.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(b.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                b.sub?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            }
+            if (b.receiptDbId != null) TextButton(onClick = { onOpen(b.receiptDbId) },
+                colors = ButtonDefaults.textButtonColors(contentColor = fg)) { Text("Detail") }
+            else if (b.kind != BannerKind.WAIT) IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Zavrieť") }
+        }
     }
 }
 

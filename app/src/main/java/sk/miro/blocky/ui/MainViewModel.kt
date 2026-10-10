@@ -63,6 +63,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun export(onReady: (File) -> Unit) = viewModelScope.launch { onReady(repo.exportCsv(rows.value)) }
 
+    // ---------- Rýchle skenovanie ----------
+    private var lastRaw: String? = null
+    private var lastRawAt = 0L
+    private var scanSeq = 0
+    private val _immediate = MutableStateFlow<ScanBanner?>(null)
+    private val _trackKey = MutableStateFlow<Pair<Int, String>?>(null)
+
+    /** Pás so stavom posledného skenu: hneď „prijaté“, potom výsledok z eKasa. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val banner: StateFlow<ScanBanner?> = combine(
+        _immediate,
+        _trackKey.flatMapLatest { k -> k?.let { (id, key) -> repo.observePending(key).map { p -> p?.toBanner(id) } } ?: flowOf(null) }
+    ) { imm, tracked -> imm ?: tracked }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val openPending = repo.openPending.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Volá kamera pri každom rozpoznaní QR. Rovnaký kód sa ignoruje, kým je v zábere. */
+    fun onQrFast(raw: String) {
+        val now = System.currentTimeMillis()
+        if (raw == lastRaw && now - lastRawAt < 10_000) { lastRawAt = now; return }
+        lastRaw = raw; lastRawAt = now
+        val id = ++scanSeq
+        viewModelScope.launch {
+            when (val r = repo.enqueue(raw)) {
+                is EnqueueResult.Accepted -> { _immediate.value = null; _trackKey.value = id to r.key }
+                is EnqueueResult.AlreadyHave -> { _trackKey.value = null
+                    _immediate.value = ScanBanner(id, BannerKind.INFO, "Tento bloček už máte", null, r.receiptDbId) }
+                is EnqueueResult.Invalid -> { _trackKey.value = null
+                    _immediate.value = ScanBanner(id, BannerKind.ERROR, r.message, "Namierte na QR kód eKasa na bločku.", null) }
+            }
+        }
+    }
+
+    fun clearBanner() { _immediate.value = null; _trackKey.value = null }
+
+    fun deletePending(key: String) = viewModelScope.launch { repo.deletePending(key) }
+
     // ---------- Testovací režim ----------
     val demoCount = repo.demoCount.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     private val _mock = MutableStateFlow(repo.mockMode)
@@ -136,4 +174,19 @@ sealed interface ScanUi {
     data object Idle : ScanUi
     data object Loading : ScanUi
     data class Done(val result: ScanResult) : ScanUi
+}
+
+enum class BannerKind { WAIT, OK, INFO, ERROR }
+
+/** [scanId] sa mení len pri novom skene (na vibráciu), stav v rámci skenu sa mení cez [kind]. */
+data class ScanBanner(val scanId: Int, val kind: BannerKind, val title: String, val sub: String?, val receiptDbId: Long?)
+
+fun PendingScanEntity.toBanner(scanId: Int): ScanBanner = when (status) {
+    "DONE" -> if (receiptDbId != null) ScanBanner(scanId, BannerKind.OK, "✓ Uložené", message, receiptDbId)
+              else ScanBanner(scanId, BannerKind.INFO, "Tento bloček už máte", null, null)
+    "FAILED" -> ScanBanner(scanId, BannerKind.ERROR, "Bloček sa nepodarilo načítať", message, null)
+    else -> if (attempts == 0) ScanBanner(scanId, BannerKind.WAIT, "✓ Bloček prijatý",
+                "Načítavam položky… Aplikáciu môžete zavrieť.", null)
+            else ScanBanner(scanId, BannerKind.WAIT, "✓ Bloček prijatý – položky načítam neskôr",
+                message ?: "Skúsim to znova automaticky.", null)
 }

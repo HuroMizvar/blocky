@@ -68,7 +68,8 @@ data class ParsedItem(
     val itemType: String?
 )
 
-class EkasaException(message: String) : Exception(message)
+/** [retryable] = oplatí sa skúsiť neskôr (napr. offline doklad ešte nie je v systéme eKasa). */
+class EkasaException(message: String, val retryable: Boolean = false) : Exception(message)
 
 /**
  * Verejné rozhranie portálu "Overenie dokladu" Finančnej správy SR.
@@ -104,7 +105,7 @@ class EkasaClient(
 
         http.newCall(req).execute().use { resp ->
             val text = resp.body?.string().orEmpty()
-            if (!resp.isSuccessful) throw EkasaException("Server eKasa vrátil chybu ${resp.code}.")
+            if (!resp.isSuccessful) throw EkasaException("Server eKasa vrátil chybu ${resp.code}.", retryable = resp.code >= 500 || resp.code == 429)
             parseResponse(text)
         }
     }
@@ -136,8 +137,9 @@ class EkasaClient(
             val r = root.optJSONObject("receipt")
             if (rv != 0 || r == null) {
                 throw EkasaException(
-                    if (rv == -1) "Doklad sa v systéme eKasa nenašiel (offline doklady sa objavia s oneskorením)."
-                    else "Doklad sa nepodarilo načítať (kód $rv)."
+                    if (rv == -1) "Doklad zatiaľ nie je v systéme eKasa (offline doklady sa objavia s oneskorením)."
+                    else "Doklad sa nepodarilo načítať (kód $rv).",
+                    retryable = rv == -1
                 )
             }
             val org = r.optJSONObject("organization")
