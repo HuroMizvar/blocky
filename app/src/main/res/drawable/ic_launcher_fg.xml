@@ -1,8 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ikona Bločky (návrh 5): bloček a zlatá minca s €. Popredie adaptívnej ikony, bezpečná zóna 66 dp. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#FFFFFF"
-        android:pathData="M36,28h36v52l-6,-4 -6,4 -6,-4 -6,4 -6,-4 -6,4z" />
-    <path android:fillColor="#1B5E20"
-        android:pathData="M42,38h24v3h-24zM42,46h24v3h-24zM42,54h16v3h-16zM42,64h24v4h-24z" />
+    <group android:translateX="11" android:translateY="11" android:scaleX="0.84" android:scaleY="0.84">
+        <!-- bloček so zúbkovaným spodkom -->
+        <path android:fillColor="#FFFFFF" android:fillAlpha="0.94"
+            android:pathData="M22,16h40v58l-6.67,-5 -6.66,5 -6.67,-5 -6.67,5 -6.66,-5 -6.67,5z" />
+        <path android:fillColor="#B9DCC6" android:pathData="M31,27h22a2,2 0,0 1,0 4h-22a2,2 0,0 1,0 -4z" />
+        <path android:fillColor="#B9DCC6" android:pathData="M31,37h16a2,2 0,0 1,0 4h-16a2,2 0,0 1,0 -4z" />
+        <!-- minca -->
+        <path android:fillColor="#F2C14E" android:pathData="M64,44a20,20 0,1 1,0 40a20,20 0,1 1,0 -40z" />
+        <path android:strokeColor="#C8962A" android:strokeWidth="2"
+            android:pathData="M64,49a15,15 0,1 1,0 30a15,15 0,1 1,0 -30z" />
+        <!-- € -->
+        <path android:strokeColor="#17201B" android:strokeWidth="3.6" android:strokeLineCap="round"
+            android:pathData="M70.5,57.2A8.6,8.6 0,1 0,70.5 70.8" />
+        <path android:strokeColor="#17201B" android:strokeWidth="3" android:strokeLineCap="round"
+            android:pathData="M55.5,61.5H65.5M55.5,66.5H65.5" />
+    </group>
 </vector>

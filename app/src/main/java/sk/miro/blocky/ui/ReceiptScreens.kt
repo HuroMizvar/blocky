@@ -13,6 +13,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material.icons.filled.Undo
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +28,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import sk.miro.blocky.data.ItemEntity
 import sk.miro.blocky.data.ReceiptEntity
+import sk.miro.blocky.data.ReceiptListRow
+import androidx.compose.ui.text.style.TextDecoration
+
+/** Suma, ktorá sa započítava (bez prečiarknutých položiek). */
+val ReceiptListRow.counted: Long get() = countedCents ?: receipt.totalCents
 import sk.miro.blocky.domain.Analytics
 import sk.miro.blocky.domain.Category
 import sk.miro.blocky.domain.MerchantType
@@ -57,9 +65,9 @@ private fun pad(p: PaddingValues) =
 @Composable
 fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Long) -> Unit,
                    actions: @Composable RowScope.() -> Unit) {
-    val receipts by vm.receipts.collectAsState()
+    val receipts by vm.receiptList.collectAsState()
     val pending by vm.openPending.collectAsState()
-    val grouped = receipts.groupBy { Analytics.monthOf(it.issuedAt) }
+    val grouped = receipts.groupBy { Analytics.monthOf(it.receipt.issuedAt) }
     LazyColumn(Modifier.fillMaxSize().background(Pal.Bg), contentPadding = pad(contentPadding)) {
         item { ScreenTitle("Bločky", actions = actions) }
         if (receipts.isEmpty() && pending.isEmpty()) {
@@ -97,22 +105,22 @@ fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Lo
         grouped.forEach { (month, list) ->
             item(key = "h$month") {
                 SectionHeader(monthLabel(month)) {
-                    Text(eur(list.sumOf { it.totalCents }), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Pal.Muted)
+                    Text(eur(list.sumOf { it.counted }), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Pal.Muted)
                 }
             }
             // v rámci mesiaca po týždňoch (pondelok–nedeľa, orezané na daný mesiac)
-            list.groupBy { weekStart(it.issuedAt) }.forEach { (wStart, wList) ->
+            list.groupBy { weekStart(it.receipt.issuedAt) }.forEach { (wStart, wList) ->
                 item(key = "w$month-$wStart") {
                     Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 6.dp, start = 4.dp, end = 4.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         Text(weekLabel(wStart, month), Modifier.weight(1f), fontSize = 13.sp,
                             fontWeight = FontWeight.Bold, color = Pal.Muted)
-                        Text(eur(wList.sumOf { it.totalCents }), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Pal.Muted)
+                        Text(eur(wList.sumOf { it.counted }), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Pal.Muted)
                     }
                 }
                 item(key = "c$month-$wStart") {
                     BCard(Modifier.padding(bottom = 8.dp), padding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
-                        wList.forEach { r -> ReceiptRow(r) { onOpen(r.id) } }
+                        wList.forEach { r -> ReceiptRow(r) { onOpen(r.receipt.id) } }
                     }
                 }
             }
@@ -121,7 +129,8 @@ fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Lo
 }
 
 @Composable
-private fun ReceiptRow(r: ReceiptEntity, onClick: () -> Unit) {
+private fun ReceiptRow(row: ReceiptListRow, onClick: () -> Unit) {
+    val r = row.receipt
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick)
         .padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         if (r.source == "MANUAL") CatBadge(Category.INE, 40)
@@ -133,7 +142,11 @@ private fun ReceiptRow(r: ReceiptEntity, onClick: () -> Unit) {
             Text(fmtDay(r.issuedAt) + when (r.source) { "MANUAL" -> " · ručne"; "DEMO" -> " · demo"; else -> "" },
                 fontSize = 12.sp, color = Pal.Muted)
         }
-        Text(eur(r.totalCents), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Column(horizontalAlignment = Alignment.End) {
+            Text(eur(row.counted), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            if (row.excludedCount > 0) Text(eur(r.totalCents), fontSize = 11.sp, color = Pal.Muted,
+                textDecoration = TextDecoration.LineThrough)
+        }
     }
 }
 
@@ -173,8 +186,18 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
                     Text(fmtDate(d.receipt.issuedAt), fontSize = 13.sp, color = Pal.Muted)
                     d.receipt.storeAddress?.let { Text(it, fontSize = 13.sp, color = Pal.Muted) }
                     Spacer(Modifier.height(10.dp))
-                    Text(eur(d.receipt.totalCents), fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
-                    Text("${d.items.size} položiek · ťuknutím zmeníte kategóriu", fontSize = 12.sp, color = Pal.Muted)
+                    val counted = d.items.filter { !it.excluded }.sumOf { it.priceCents }
+                    val excludedN = d.items.count { it.excluded }
+                    val saved = d.items.sumOf { it.discountCents }
+                    Text(eur(if (excludedN > 0) counted else d.receipt.totalCents), fontSize = 34.sp,
+                        fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
+                    if (excludedN > 0) Text("Započítané · pôvodne ${eur(d.receipt.totalCents)}, prečiarknuté $excludedN",
+                        fontSize = 12.sp, color = Pal.Muted)
+                    if (saved > 0) Text("Na zľavách ste ušetrili ${eur(saved)}", fontSize = 12.sp,
+                        color = Pal.Green, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(2.dp))
+                    Text("${d.items.size} položiek · ťuknutím zmeníte kategóriu · ikonou vpravo prečiarknete " +
+                        "(vrátené, reklamované)", fontSize = 12.sp, color = Pal.Muted, lineHeight = 16.sp)
                 }
             }
             item { Spacer(Modifier.height(12.dp)) }
@@ -182,17 +205,30 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
                 BCard(padding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
                     d.items.forEach { item ->
                         val c = Category.fromName(item.category)
+                        val ex = item.excluded
+                        val strike = if (ex) TextDecoration.LineThrough else TextDecoration.None
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable { editing = item }
-                            .padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            CatBadge(c, 34)
+                            .padding(start = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.alpha(if (ex) 0.4f else 1f)) { CatBadge(c, 34) }
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(item.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                Text(item.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textDecoration = strike,
+                                    color = if (ex) Pal.Muted else Pal.Ink)
                                 val qty = if (item.quantity != 1.0) "${fmtQty(item.quantity)} × · " else ""
-                                Text(qty + c.label + if (item.categoryManual) " · upravené" else "",
-                                    fontSize = 12.sp, color = catStyle(c).fg)
+                                Text(if (ex) "Nezapočítané – vrátené / reklamované"
+                                     else qty + c.label + if (item.categoryManual) " · upravené" else "",
+                                    fontSize = 12.sp, color = if (ex) Pal.Muted else catStyle(c).fg)
+                                if (item.discountCents > 0 && !ex) Text(
+                                    "zľava −${eur(item.discountCents)} · pôvodne ${eur(item.priceCents + item.discountCents)}",
+                                    fontSize = 12.sp, color = Pal.Green, fontWeight = FontWeight.SemiBold)
                             }
-                            Text(eur(item.priceCents), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(eur(item.priceCents), fontSize = 14.sp, fontWeight = FontWeight.Bold, textDecoration = strike,
+                                color = if (ex) Pal.Muted else Pal.Ink)
+                            IconButton(onClick = { vm.setExcluded(item.id, !ex) }) {
+                                Icon(if (ex) Icons.Default.Undo else Icons.Default.RemoveCircleOutline,
+                                    if (ex) "Znova započítať" else "Prečiarknuť – nezapočítať",
+                                    tint = if (ex) Pal.Green else Pal.Faint, modifier = Modifier.size(22.dp))
+                            }
                         }
                     }
                 }

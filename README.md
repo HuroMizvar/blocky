@@ -23,6 +23,8 @@ Ikony kategórií: [Phosphor Icons](https://phosphoricons.com) (MIT), písmo: Pl
 3. Obchody a pumpy → každá položka podľa názvu (mäso, mliečne, alkohol, PHM…).
 4. **Zálohy** za fľaše a plechovky sú vždy samostatná skupina a do výdavkov sa nepočítajú.
 5. Ručná oprava položky má vždy prednosť.
+6. **Zľavy** (záporné riadky) sa pripočítajú k produktu nad nimi; zľava na celý nákup sa rozpočíta pomerne (`domain/Discounts.kt`).
+7. **Prečiarknutá položka** (vrátená, reklamovaná, omyl) sa nezapočítava do výdavkov.
 
 ## Rýchle skenovanie
 Aplikácia sa vždy otvorí rovno na skeneri (aj po návrate z pozadia po viac ako 1 minúte).

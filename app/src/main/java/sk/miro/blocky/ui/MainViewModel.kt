@@ -62,6 +62,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteReceipt(id: Long) = viewModelScope.launch { repo.deleteReceipt(id) }
 
+    /** Bločky so súčtom započítaných položiek (bez prečiarknutých). */
+    val receiptList = repo.receiptList.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Prečiarknuť / vrátiť položku (vrátený či reklamovaný tovar, omyl). */
+    fun setExcluded(itemId: Long, excluded: Boolean) = viewModelScope.launch { repo.setExcluded(itemId, excluded) }
+
     fun setBudget(c: Category, cents: Long?) = viewModelScope.launch { repo.setBudget(c, cents) }
 
     fun export(onReady: (File) -> Unit) = viewModelScope.launch { onReady(repo.exportCsv(rows.value)) }

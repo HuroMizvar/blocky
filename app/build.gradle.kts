@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "sk.miro.blocky"
-    compileSdk = 35
+    compileSdk = 36
 
     // Číslo buildu z GitHub Actions → každý build má vyššie versionCode a dá sa nainštalovať ako aktualizácia.
     val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
@@ -19,7 +19,7 @@ android {
     defaultConfig {
         applicationId = "sk.miro.blocky"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = buildNumber
         versionName = "1.0.$buildNumber"
         buildConfigField("String", "GH_REPO", "\"$ghRepo\"")

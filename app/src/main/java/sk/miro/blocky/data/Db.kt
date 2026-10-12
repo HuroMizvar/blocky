@@ -62,7 +62,18 @@ data class ItemEntity(
     val itemType: String?,
     val category: String,
     /** true, ak kategóriu nastavil používateľ ručne */
-    val categoryManual: Boolean = false
+    val categoryManual: Boolean = false,
+    /** zľava priradená k tejto položke (kladné číslo, centy); priceCents je už po zľave */
+    @ColumnInfo(defaultValue = "0") val discountCents: Long = 0,
+    /** prečiarknutá položka – nezapočítava sa do výdavkov (vrátenie, reklamácia, omyl) */
+    @ColumnInfo(defaultValue = "0") val excluded: Boolean = false
+)
+
+/** Bloček v zozname + súčet započítaných položiek (bez prečiarknutých). */
+data class ReceiptListRow(
+    @Embedded val receipt: ReceiptEntity,
+    val countedCents: Long?,
+    val excludedCount: Int
 )
 
 @Entity(tableName = "budgets")
@@ -181,6 +192,21 @@ abstract class BlockyDao {
     @Query("SELECT * FROM receipts ORDER BY issuedAt DESC")
     abstract fun receipts(): Flow<List<ReceiptEntity>>
 
+    @Query("""SELECT r.*,
+                (SELECT SUM(i.priceCents) FROM items i WHERE i.receiptDbId = r.id AND i.excluded = 0) AS countedCents,
+                (SELECT COUNT(*) FROM items i WHERE i.receiptDbId = r.id AND i.excluded = 1) AS excludedCount
+              FROM receipts r ORDER BY r.issuedAt DESC""")
+    abstract fun receiptList(): Flow<List<ReceiptListRow>>
+
+    @Query("UPDATE items SET excluded = :excluded WHERE id = :id")
+    abstract suspend fun setExcluded(id: Long, excluded: Boolean)
+
+    @Query("UPDATE items SET priceCents = :price, discountCents = :discount WHERE id = :id")
+    abstract suspend fun setItemPrice(id: Long, price: Long, discount: Long)
+
+    @Query("DELETE FROM items WHERE id = :id")
+    abstract suspend fun deleteItem(id: Long)
+
     @Transaction
     @Query("SELECT * FROM receipts WHERE id = :id")
     abstract fun receiptWithItems(id: Long): Flow<ReceiptWithItems?>
@@ -223,6 +249,7 @@ abstract class BlockyDao {
         """SELECT i.id AS itemId, i.receiptDbId, i.name, i.normName, i.quantity, i.priceCents,
                   i.category, r.merchantName, r.issuedAt, r.merchantType
            FROM items i JOIN receipts r ON r.id = i.receiptDbId
+           WHERE i.excluded = 0
            ORDER BY r.issuedAt"""
     )
     abstract fun allItemRows(): Flow<List<ItemRow>>
@@ -252,7 +279,7 @@ abstract class BlockyDao {
 @Database(
     entities = [ReceiptEntity::class, ItemEntity::class, BudgetEntity::class, CategoryRuleEntity::class,
         PendingScanEntity::class, MerchantEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -282,10 +309,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v4: zľavy priradené k položkám + prečiarknuté (nezapočítané) položky */
+        val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `items` ADD COLUMN `discountCents` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `items` ADD COLUMN `excluded` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "blocky.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build().also { instance = it }
         }
     }

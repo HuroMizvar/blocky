@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import sk.miro.blocky.domain.Analytics
 import sk.miro.blocky.domain.Category
 import sk.miro.blocky.domain.Categorizer
+import sk.miro.blocky.domain.DiscountFolder
 import sk.miro.blocky.domain.HouseholdProfile
 import sk.miro.blocky.domain.MerchantResolver
 import sk.miro.blocky.domain.MerchantType
@@ -75,6 +76,8 @@ class Repository(private val context: Context) {
     val unknownMerchants = dao.unknownMerchants()
     fun observeReceipt(id: Long) = dao.observeReceipt(id)
     val receipts = dao.receipts()
+    val receiptList = dao.receiptList()
+    suspend fun setExcluded(itemId: Long, excluded: Boolean) = dao.setExcluded(itemId, excluded)
     val itemRows = dao.allItemRows()
     val budgets = dao.budgets()
     fun receipt(id: Long) = dao.receiptWithItems(id)
@@ -182,13 +185,17 @@ class Repository(private val context: Context) {
             rawJson = p.rawJson.ifBlank { null }, source = source,
             merchantKey = if (source == "MANUAL") null else mKey, merchantType = mType.name
         )
-        val items = p.items.map {
+        // Zľavy (záporné riadky) sa pripočítajú k produktu, ku ktorému patria.
+        val folded = if (forced != null) p.items.map { DiscountFolder.Folded(it.priceCents, 0) }
+            else DiscountFolder.fold(p.items.map { DiscountFolder.Line(it.name, it.priceCents, it.itemType) })
+        val items = p.items.zip(folded).mapNotNull { (it, f) ->
+            if (f == null) return@mapNotNull null
             val norm = Categorizer.normalize(it.name)
             ItemEntity(
                 receiptDbId = 0, name = it.name, normName = norm, quantity = it.quantity,
-                priceCents = it.priceCents, vatRate = it.vatRate, itemType = it.itemType,
+                priceCents = f.priceCents, vatRate = it.vatRate, itemType = it.itemType,
                 category = (forced ?: Categorizer.categorizeItem(it.name, mType, it.priceCents, userRules)).name,
-                categoryManual = forced != null
+                categoryManual = forced != null, discountCents = f.discountCents
             )
         }
         val id = try {
@@ -245,9 +252,31 @@ class Repository(private val context: Context) {
 
     /** Pri novej verzii kategorizácie jednorazovo preradí všetky existujúce bločky (ručné zmeny ostanú). */
     suspend fun migrateIfNeeded() {
-        if (prefs.getInt("catVersion", 0) >= CATEGORIZER_VERSION) return
-        recategorizeReceipts(dao.allReceiptsWithItems())
-        prefs.edit().putInt("catVersion", CATEGORIZER_VERSION).apply()
+        if (prefs.getInt("catVersion", 0) < CATEGORIZER_VERSION) {
+            recategorizeReceipts(dao.allReceiptsWithItems())
+            prefs.edit().putInt("catVersion", CATEGORIZER_VERSION).apply()
+        }
+        if (prefs.getInt("discountFold", 0) < 1) {
+            foldExistingDiscounts()
+            prefs.edit().putInt("discountFold", 1).apply()
+        }
+    }
+
+    /** Jednorazovo priradí zľavy k produktom aj v už uložených bločkoch. */
+    private suspend fun foldExistingDiscounts() {
+        for (rw in dao.allReceiptsWithItems()) {
+            if (rw.receipt.source == "MANUAL") continue
+            val items = rw.items.sortedBy { it.id }
+            if (items.none { it.priceCents < 0 }) continue
+            val folded = DiscountFolder.fold(items.map { DiscountFolder.Line(it.name, it.priceCents, it.itemType) })
+            items.zip(folded).forEach { (item, f) ->
+                when {
+                    f == null -> dao.deleteItem(item.id)
+                    f.priceCents != item.priceCents || f.discountCents != item.discountCents ->
+                        dao.setItemPrice(item.id, f.priceCents, item.discountCents + f.discountCents)
+                }
+            }
+        }
     }
 
     /** Právo na výmaz: zmaže všetky bločky, rozpočty, pravidlá, prevádzky, profil a exporty. */
