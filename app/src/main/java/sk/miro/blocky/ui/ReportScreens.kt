@@ -35,6 +35,7 @@ private fun listPadding(p: PaddingValues) =
 fun ReportScreen(
     vm: MainViewModel, contentPadding: PaddingValues,
     onOpenTips: () -> Unit, onOpenBudgets: () -> Unit, onScan: () -> Unit,
+    onOpenItems: (kind: String, key: String, month: YearMonth) -> Unit,
     actions: @Composable RowScope.() -> Unit
 ) {
     val st by vm.state.collectAsState()
@@ -137,7 +138,8 @@ fun ReportScreen(
                         c.budgetCents?.let { "rozpočet ${eur(it)}" }
                     )
                     CategoryRow(c.category, c.cents, max, parts.joinToString(" · "),
-                        over = c.budgetCents != null && c.cents > c.budgetCents)
+                        over = c.budgetCents != null && c.cents > c.budgetCents,
+                        onClick = { onOpenItems("cat", c.category.name, r.month) })
                 }
             }
         }
@@ -166,8 +168,10 @@ fun ReportScreen(
         item { SectionHeader("Obchody") }
         item {
             BCard(padding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
-                r.merchants.take(6).forEach { m ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                r.merchants.take(8).forEach { m ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        .clickable { onOpenItems("merchant", m.name, r.month) }
+                        .padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         MerchantBadge(m.type, 38)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {

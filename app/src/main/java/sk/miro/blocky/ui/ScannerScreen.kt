@@ -57,9 +57,17 @@ private fun vibrate(context: Context, pattern: LongArray) {
         (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
     else context.getSystemService(Vibrator::class.java)
     if (v == null || !v.hasVibrator()) return
-    if (pattern.size == 1) v.vibrate(VibrationEffect.createOneShot(pattern[0], VibrationEffect.DEFAULT_AMPLITUDE))
-    else v.vibrate(VibrationEffect.createWaveform(longArrayOf(0) + pattern, -1))
+    val effect = if (pattern.size == 1) VibrationEffect.createOneShot(pattern[0], VibrationEffect.DEFAULT_AMPLITUDE)
+        else VibrationEffect.createWaveform(longArrayOf(0) + pattern, -1)
+    // Ako upozornenie (nie „dotyková odozva“) – niektoré telefóny (Samsung) dotykovú vibráciu potláčajú.
+    if (Build.VERSION.SDK_INT >= 33)
+        v.vibrate(effect, android.os.VibrationAttributes.createForUsage(android.os.VibrationAttributes.USAGE_NOTIFICATION))
+    else vibrateLegacy(v, effect)
 }
+
+@Suppress("DEPRECATION")
+private fun vibrateLegacy(v: Vibrator, effect: VibrationEffect) =
+    v.vibrate(effect, android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).build())
 
 private val VIB_OK = longArrayOf(90)                         // jedno krátke
 private val VIB_DUP = longArrayOf(120, 110, 120, 110, 120)   // tri – pozor, duplicita
@@ -91,10 +99,20 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
     var camera by remember { mutableStateOf<Camera?>(null) }
     var manual by remember { mutableStateOf(false) }
 
-    // Vibrácia: pri novom skene a pri zmene na duplicitu / chybu.
+    // Vibrácia hneď pri rozpoznaní QR (nečaká na odpoveď eKasa).
+    LaunchedEffect(Unit) {
+        vm.vibe.collect { k ->
+            vibrate(context, when (k) {
+                BannerKind.DUPLICATE -> VIB_DUP
+                BannerKind.ERROR -> VIB_ERR
+                else -> VIB_OK
+            })
+        }
+    }
+    // Duplicita / chyba zistená až po načítaní z eKasa (offline bločky).
     LaunchedEffect(banner?.scanId, banner?.kind) {
-        when (banner?.kind) {
-            BannerKind.WAIT -> vibrate(context, VIB_OK)
+        val b = banner ?: return@LaunchedEffect
+        if (b.fromFetch) when (b.kind) {
             BannerKind.DUPLICATE -> vibrate(context, VIB_DUP)
             BannerKind.ERROR -> vibrate(context, VIB_ERR)
             else -> Unit

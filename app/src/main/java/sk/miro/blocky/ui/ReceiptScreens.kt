@@ -35,6 +35,20 @@ import java.time.format.DateTimeFormatter
 private val DT = DateTimeFormatter.ofPattern("d. M. yyyy HH:mm")
 private val DAY = DateTimeFormatter.ofPattern("d. M. · HH:mm")
 fun fmtDate(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(DT)
+private val DM = DateTimeFormatter.ofPattern("d. M.")
+
+/** Pondelok týždňa, do ktorého nákup patrí. */
+fun weekStart(ms: Long): java.time.LocalDate =
+    Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalDate()
+        .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+
+/** „Týždeň 41 · 6. 10. – 12. 10.“ – dni orezané na daný mesiac. */
+fun weekLabel(start: java.time.LocalDate, month: java.time.YearMonth): String {
+    val from = maxOf(start, month.atDay(1)); val to = minOf(start.plusDays(6), month.atEndOfMonth())
+    val wk = start.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR)
+    return "Týždeň $wk · ${from.format(DM)} – ${to.format(DM)}"
+}
+
 private fun fmtDay(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(DAY)
 
 private fun pad(p: PaddingValues) =
@@ -86,9 +100,20 @@ fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Lo
                     Text(eur(list.sumOf { it.totalCents }), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Pal.Muted)
                 }
             }
-            item(key = "c$month") {
-                BCard(padding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
-                    list.forEach { r -> ReceiptRow(r) { onOpen(r.id) } }
+            // v rámci mesiaca po týždňoch (pondelok–nedeľa, orezané na daný mesiac)
+            list.groupBy { weekStart(it.issuedAt) }.forEach { (wStart, wList) ->
+                item(key = "w$month-$wStart") {
+                    Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 6.dp, start = 4.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(weekLabel(wStart, month), Modifier.weight(1f), fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold, color = Pal.Muted)
+                        Text(eur(wList.sumOf { it.totalCents }), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Pal.Muted)
+                    }
+                }
+                item(key = "c$month-$wStart") {
+                    BCard(Modifier.padding(bottom = 8.dp), padding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
+                        wList.forEach { r -> ReceiptRow(r) { onOpen(r.id) } }
+                    }
                 }
             }
         }
@@ -184,8 +209,8 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
     }
 
     editing?.let { item ->
-        CategoryDialog(item, onDismiss = { editing = null }) { c, all ->
-            vm.recategorize(item, c, all); editing = null
+        CategoryPickerDialog(item.name, Category.fromName(item.category), onDismiss = { editing = null }) { c, all ->
+            vm.recategorize(item.id, item.normName, c, all); editing = null
         }
     }
     if (confirmDelete) AlertDialog(
@@ -200,34 +225,6 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
 private fun fmtQty(q: Double): String =
     if (q % 1.0 == 0.0) q.toLong().toString() else "%.3f".format(SK, q).trimEnd('0').trimEnd(',')
 
-@Composable
-private fun CategoryDialog(item: ItemEntity, onDismiss: () -> Unit, onPick: (Category, Boolean) -> Unit) {
-    var all by remember { mutableStateOf(true) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Pal.Card,
-        title = { Text(item.name, fontSize = 18.sp, fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(all, { all = it })
-                    Text("Zapamätať pre všetky položky s týmto názvom", fontSize = 13.sp)
-                }
-                Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState())) {
-                    Category.entries.forEach { c ->
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onPick(c, all) }
-                            .padding(vertical = 6.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            CatBadge(c, 30)
-                            Spacer(Modifier.width(10.dp))
-                            Text(c.label, fontWeight = if (c.name == item.category) FontWeight.ExtraBold else FontWeight.Normal)
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Zavrieť") } }
-    )
-}
 
 @Composable
 fun BudgetsScreen(vm: MainViewModel, contentPadding: PaddingValues, actions: @Composable RowScope.() -> Unit) {

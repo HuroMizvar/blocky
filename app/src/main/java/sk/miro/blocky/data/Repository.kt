@@ -200,11 +200,11 @@ class Repository(private val context: Context) {
     }
 
     /** Zmení kategóriu položky; ak [applyToAll], zapamätá si pravidlo pre všetky rovnaké názvy. */
-    suspend fun recategorize(item: ItemEntity, category: Category, applyToAll: Boolean) {
+    suspend fun recategorize(itemId: Long, normName: String, category: Category, applyToAll: Boolean) {
         if (applyToAll) {
-            dao.upsertRule(CategoryRuleEntity(item.normName, category.name))
-            dao.setCategoryForName(item.normName, category.name)
-        } else dao.setItemCategory(item.id, category.name)
+            dao.upsertRule(CategoryRuleEntity(normName, category.name))
+            dao.setCategoryForName(normName, category.name)
+        } else dao.setItemCategory(itemId, category.name)
     }
 
     suspend fun deleteReceipt(id: Long) = dao.deleteReceipt(id)
@@ -218,17 +218,6 @@ class Repository(private val context: Context) {
     }
 
     suspend fun clearDemo(): Int = dao.deleteBySource(DemoData.SOURCE)
-
-    /** Import surovej JSON odpovede eKasa (napr. skopírovanej z webu) – na ladenie parsera. */
-    suspend fun importJson(text: String): ScanResult {
-        val parsed = try {
-            EkasaClient.parseResponse(text.trim())
-        } catch (e: EkasaException) {
-            return ScanResult.Error(e.message ?: "Neplatný JSON")
-        }
-        dao.receiptByReceiptId(parsed.receiptId)?.let { return ScanResult.Duplicate(parsed.receiptId, it) }
-        return save(parsed, "EKASA")
-    }
 
     // ---------- Prevádzky a preradenie kategórií ----------
 

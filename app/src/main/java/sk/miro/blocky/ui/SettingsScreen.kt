@@ -13,8 +13,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sk.miro.blocky.data.EkasaClient
-import sk.miro.blocky.data.ScanResult
-import sk.miro.blocky.data.duplicateText
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.sp
 
@@ -120,10 +118,6 @@ private fun TestSection(vm: MainViewModel) {
     val mock by vm.mockMode.collectAsState()
     val demo by vm.demoCount.collectAsState()
     val msg by vm.testMsg.collectAsState()
-    val scan by vm.scan.collectAsState()
-    var qr by remember { mutableStateOf("") }
-    var json by remember { mutableStateOf("") }
-    DisposableEffect(Unit) { onDispose { vm.resetScan() } }
 
     SectionTitle("Testovací režim")
     Text("Demo bločky v databáze: $demo", style = MaterialTheme.typography.bodySmall)
@@ -142,32 +136,6 @@ private fun TestSection(vm: MainViewModel) {
         Switch(mock, vm::setMockMode)
     }
 
-    Text("Obsah QR kódu (bez kamery)", Modifier.padding(top = 16.dp), fontWeight = FontWeight.SemiBold)
-    OutlinedTextField(qr, { qr = it }, Modifier.fillMaxWidth(), placeholder = { Text("O-XXXXXXXX… alebo OKP:…") },
-        textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace), singleLine = true)
-    Button(onClick = { vm.resetScan(); vm.onQr(qr) }, enabled = qr.isNotBlank() && scan !is ScanUi.Loading,
-        modifier = Modifier.padding(top = 4.dp)) { Text("Spracovať QR") }
-
-    Text("JSON odpoveď eKasa (ladenie parsera)", Modifier.padding(top = 16.dp), fontWeight = FontWeight.SemiBold)
-    OutlinedTextField(json, { json = it }, Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 220.dp),
-        placeholder = { Text("{\"returnValue\":0,\"receipt\":{…}}") },
-        textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace))
-    Button(onClick = { vm.resetScan(); vm.importJson(json) }, enabled = json.isNotBlank(),
-        modifier = Modifier.padding(top = 4.dp)) { Text("Importovať JSON") }
-
-    when (val s = scan) {
-        ScanUi.Loading -> Text("Spracúvam…", Modifier.padding(top = 8.dp))
-        is ScanUi.Done -> {
-            val (text, isErr) = when (val r = s.result) {
-                is ScanResult.Saved -> "Uložené: ${r.merchant}, ${r.items} položiek, ${eur(r.totalCents)}" to false
-                is ScanResult.Duplicate -> ("Tento bloček už máte: " + (r.existing?.let { duplicateText(it) } ?: r.receiptId)) to true
-                is ScanResult.Error -> r.message to true
-            }
-            Text(text, Modifier.padding(top = 8.dp),
-                color = if (isErr) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-        }
-        ScanUi.Idle -> Unit
-    }
 }
 
 @Composable

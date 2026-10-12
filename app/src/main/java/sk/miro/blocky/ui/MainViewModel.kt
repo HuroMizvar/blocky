@@ -47,24 +47,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         r.filter { Analytics.monthOf(it.issuedAt) == now && it.category != Category.ZALOHY.name }.sumOf { it.priceCents }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
-    private val _scan = MutableStateFlow<ScanUi>(ScanUi.Idle)
-    val scan: StateFlow<ScanUi> = _scan
 
     fun selectMonth(m: YearMonth) { selectedMonth.value = m }
 
-    fun onQr(raw: String) {
-        if (_scan.value is ScanUi.Loading) return
-        _scan.value = ScanUi.Loading
-        viewModelScope.launch { _scan.value = ScanUi.Done(repo.scan(raw)) }
-    }
-
-    fun resetScan() { _scan.value = ScanUi.Idle }
 
     fun addManual(merchant: String, cents: Long, category: Category, issuedAt: Long) =
         viewModelScope.launch { repo.addManual(merchant, cents, category, issuedAt) }
 
-    fun recategorize(item: ItemEntity, c: Category, all: Boolean) =
-        viewModelScope.launch { repo.recategorize(item, c, all) }
+    fun recategorize(itemId: Long, normName: String, c: Category, all: Boolean) =
+        viewModelScope.launch { repo.recategorize(itemId, normName, c, all) }
+
+    /** Všetky položky (pre zoznam položiek kategórie / obchodu). */
+    val allRows: StateFlow<List<ItemRow>> get() = rows
 
     fun deleteReceipt(id: Long) = viewModelScope.launch { repo.deleteReceipt(id) }
 
@@ -76,6 +70,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var lastRaw: String? = null
     private var lastRawAt = 0L
     private var scanSeq = 0
+
+    /** Okamžitá spätná väzba pre vibráciu – vyšle sa hneď pri rozpoznaní QR, nečaká na eKasa. */
+    private val _vibe = MutableSharedFlow<BannerKind>(extraBufferCapacity = 4)
+    val vibe: SharedFlow<BannerKind> = _vibe
     private val _immediate = MutableStateFlow<ScanBanner?>(null)
     private val _trackKey = MutableStateFlow<Pair<Int, String>?>(null)
 
@@ -97,11 +95,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val id = ++scanSeq
         viewModelScope.launch {
             when (val r = repo.enqueue(raw)) {
-                is EnqueueResult.Accepted -> { _immediate.value = null; _trackKey.value = id to r.key }
-                is EnqueueResult.AlreadyHave -> { _trackKey.value = null
+                is EnqueueResult.Accepted -> { _vibe.tryEmit(BannerKind.OK); _immediate.value = null; _trackKey.value = id to r.key }
+                is EnqueueResult.AlreadyHave -> { _vibe.tryEmit(BannerKind.DUPLICATE); _trackKey.value = null
                     _immediate.value = ScanBanner(id, BannerKind.DUPLICATE, "Tento bloček už máte!",
                         r.existing?.let { duplicateText(it) } ?: "Rovnaký bloček ste už naskenovali.", r.existing?.id) }
-                is EnqueueResult.Invalid -> { _trackKey.value = null
+                is EnqueueResult.Invalid -> { _vibe.tryEmit(BannerKind.ERROR); _trackKey.value = null
                     _immediate.value = ScanBanner(id, BannerKind.ERROR, r.message, "Namierte na QR kód eKasa na bločku.", null) }
             }
         }
@@ -177,9 +175,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _testMsg.value = "Zmazaných ${repo.clearDemo()} demo bločkov."
     }
 
-    fun importJson(text: String) = viewModelScope.launch {
-        _scan.value = ScanUi.Done(repo.importJson(text))
-    }
 
     // ---------- Aktualizácie ----------
     val updater = Updater(app)
@@ -227,18 +222,17 @@ sealed interface UpdateUi {
     data class Error(val message: String) : UpdateUi
 }
 
-sealed interface ScanUi {
-    data object Idle : ScanUi
-    data object Loading : ScanUi
-    data class Done(val result: ScanResult) : ScanUi
-}
 
 enum class BannerKind { WAIT, OK, DUPLICATE, INFO, ERROR }
 
 /** [scanId] sa mení len pri novom skene (na vibráciu), stav v rámci skenu sa mení cez [kind]. */
-data class ScanBanner(val scanId: Int, val kind: BannerKind, val title: String, val sub: String?, val receiptDbId: Long?)
+data class ScanBanner(val scanId: Int, val kind: BannerKind, val title: String, val sub: String?, val receiptDbId: Long?,
+                      /** stav prišiel až po načítaní z eKasa (nie hneď pri skene) */
+                      val fromFetch: Boolean = false)
 
-fun PendingScanEntity.toBanner(scanId: Int): ScanBanner = when (status) {
+fun PendingScanEntity.toBanner(scanId: Int): ScanBanner = toBannerRaw(scanId).copy(fromFetch = true)
+
+private fun PendingScanEntity.toBannerRaw(scanId: Int): ScanBanner = when (status) {
     "DONE" -> if (receiptDbId != null) ScanBanner(scanId, BannerKind.OK, "Bloček naskenovaný", message, receiptDbId)
               else ScanBanner(scanId, BannerKind.DUPLICATE, "Tento bloček už máte!", null, null)
     "DUP" -> ScanBanner(scanId, BannerKind.DUPLICATE, "Tento bloček už máte!", message, receiptDbId)

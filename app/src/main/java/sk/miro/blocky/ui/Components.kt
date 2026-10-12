@@ -11,7 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -263,9 +263,11 @@ fun MerchantTypeDialog(m: MerchantEntity, onPick: (MerchantType) -> Unit, onLate
 
 /** Riadok kategórie: odznak, názov, suma a pruh. */
 @Composable
-fun CategoryRow(c: Category, cents: Long, maxCents: Long, sub: String? = null, over: Boolean = false) {
+fun CategoryRow(c: Category, cents: Long, maxCents: Long, sub: String? = null, over: Boolean = false,
+                onClick: (() -> Unit)? = null) {
     val s = catStyle(c)
-    Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
         CatBadge(c)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -300,3 +302,65 @@ fun ScreenBox(contentPadding: PaddingValues, content: @Composable BoxScope.() ->
 
 @Composable
 fun SectionTitle(text: String) = SectionHeader(text)
+
+/** Skupiny kategórií vo výbere – každá kategória je práve v jednej skupine. */
+val CATEGORY_GROUPS: List<Pair<String, List<Category>>> = listOf(
+    "Potraviny a nápoje" to listOf(Category.MASO, Category.MLIECNE, Category.PECIVO, Category.OVOCIE_ZELENINA,
+        Category.TRVANLIVE, Category.MRAZENE_HOTOVE, Category.NAPOJE, Category.SLADKOSTI, Category.ALKOHOL, Category.TABAK),
+    "Domácnosť a zdravie" to listOf(Category.DROGERIA, Category.DOMACNOST, Category.ZDRAVIE, Category.ZVIERATA),
+    "Mimo domu" to listOf(Category.RESTAURACIE, Category.UBYTOVANIE, Category.VOLNY_CAS),
+    "Ostatné" to listOf(Category.OBLECENIE, Category.ELEKTRONIKA, Category.SLUZBY, Category.PHM,
+        Category.ZALOHY, Category.ZLAVY, Category.INE)
+)
+
+/** Výber kategórie pre položku – na celú obrazovku, všetky kategórie viditeľné a posúvateľné. */
+@Composable
+fun CategoryPickerDialog(itemName: String, current: Category, onDismiss: () -> Unit, onPick: (Category, Boolean) -> Unit) {
+    var all by remember { mutableStateOf(true) }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.9f).clip(RoundedCornerShape(28.dp)).background(Pal.Bg)) {
+            Column(Modifier.fillMaxWidth().background(Pal.Card).padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Zaradiť do kategórie", fontSize = 13.sp, color = Pal.Muted)
+                        Text(itemName, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Zavrieť") }
+                }
+                Row(Modifier.clip(RoundedCornerShape(10.dp)).clickable { all = !all }, verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(all, { all = it })
+                    Text("Zapamätať pre všetky položky s týmto názvom", fontSize = 13.sp)
+                }
+            }
+            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(150.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CATEGORY_GROUPS.forEach { (title, cats) ->
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                        Text(title, Modifier.padding(top = 8.dp, bottom = 2.dp), fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold, color = Pal.Muted)
+                    }
+                    cats.forEach { c ->
+                        item {
+                            val sel = c == current
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                .background(if (sel) catStyle(c).bg else Pal.Card)
+                                .clickable { onPick(c, all) }.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                CatBadge(c, 34)
+                                Spacer(Modifier.width(10.dp))
+                                Text(c.label, fontSize = 13.sp, lineHeight = 16.sp,
+                                    fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold, maxLines = 2)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

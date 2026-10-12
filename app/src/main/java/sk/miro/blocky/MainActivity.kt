@@ -1,6 +1,7 @@
 package sk.miro.blocky
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -125,6 +126,7 @@ class MainActivity : ComponentActivity() {
                                         onOpenTips = { nav.navigate(Tab.TIPS.route) { popUpTo("scan") { saveState = true }; launchSingleTop = true } },
                                         onOpenBudgets = { nav.navigate(Tab.BUDGETS.route) { popUpTo("scan") { saveState = true }; launchSingleTop = true } },
                                         onScan = { nav.navigate("scan") { popUpTo("scan") { inclusive = false }; launchSingleTop = true } },
+                                        onOpenItems = { kind, key, month -> nav.navigate("items/$kind/${Uri.encode(key)}/$month") },
                                         actions = actions)
                                     Tab.TIPS -> RecommendationsScreen(vm, pad, actions)
                                     Tab.RECEIPTS -> ReceiptsScreen(vm, pad, onOpen = { id -> nav.navigate("receipt/$id") }, actions = actions)
@@ -139,6 +141,12 @@ class MainActivity : ComponentActivity() {
                             nav.navigate(Tab.REPORT.route) { launchSingleTop = true }
                         }) { id -> nav.navigate("receipt/$id") }
                     }
+                    composable("items/{kind}/{key}/{month}") { e ->
+                        val a = e.arguments!!
+                        ItemsScreen(vm, a.getString("kind")!!, a.getString("key")!!,
+                            java.time.YearMonth.parse(a.getString("month")!!),
+                            onBack = { nav.popBackStack() }, onOpenReceipt = { id -> nav.navigate("receipt/$id") })
+                    }
                     composable("receipt/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                         ReceiptDetailScreen(vm, it.arguments!!.getLong("id")) { nav.popBackStack() }
                     }
@@ -152,15 +160,20 @@ class MainActivity : ComponentActivity() {
         Column(Modifier.fillMaxWidth().background(Pal.Card)) {
             HorizontalDivider(color = Pal.Line)
             Row(Modifier.fillMaxWidth().navigationBarsPadding().height(72.dp), verticalAlignment = Alignment.CenterVertically) {
-                val slots = listOf(Tab.REPORT, Tab.TIPS, null, Tab.RECEIPTS, Tab.BUDGETS)
+                // Poradie: Prehľad · Bločky · Skenuj · Rozpočty · Tipy
+                val slots = listOf(Tab.REPORT, Tab.RECEIPTS, null, Tab.BUDGETS, Tab.TIPS)
                 slots.forEach { t ->
                     Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                         if (t == null) {
-                            Box(Modifier.offset(y = (-14).dp).size(60.dp)
-                                .shadow(10.dp, RoundedCornerShape(20.dp), ambientColor = Pal.Green, spotColor = Pal.Green)
-                                .clip(RoundedCornerShape(20.dp)).background(Pal.Green)
-                                .clickable(onClickLabel = "Skenovať", onClick = onScan), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.QrCodeScanner, "Skenovať", tint = Color.White, modifier = Modifier.size(28.dp))
+                            Column(Modifier.offset(y = (-10).dp).clickable(onClickLabel = "Skenuj", onClick = onScan),
+                                horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(Modifier.size(56.dp)
+                                    .shadow(10.dp, RoundedCornerShape(19.dp), ambientColor = Pal.Green, spotColor = Pal.Green)
+                                    .clip(RoundedCornerShape(19.dp)).background(Pal.Green), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.QrCodeScanner, "Skenuj", tint = Color.White, modifier = Modifier.size(28.dp))
+                                }
+                                Spacer(Modifier.height(3.dp))
+                                Text("Skenuj", color = Pal.Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         } else {
                             val sel = current == t
