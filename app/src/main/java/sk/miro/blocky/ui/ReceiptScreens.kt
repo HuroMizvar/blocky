@@ -27,6 +27,7 @@ import sk.miro.blocky.data.ItemEntity
 import sk.miro.blocky.data.ReceiptEntity
 import sk.miro.blocky.domain.Analytics
 import sk.miro.blocky.domain.Category
+import sk.miro.blocky.domain.MerchantType
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -98,9 +99,8 @@ fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Lo
 private fun ReceiptRow(r: ReceiptEntity, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick)
         .padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(40.dp).clip(CircleShape).background(Pal.Track), contentAlignment = Alignment.Center) {
-            Text(r.merchantName.trim().take(1).uppercase(), fontWeight = FontWeight.ExtraBold)
-        }
+        if (r.source == "MANUAL") CatBadge(Category.INE, 40)
+        else MerchantBadge(MerchantType.fromName(r.merchantType), 40)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(shortMerchant(r.merchantName), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
@@ -117,6 +117,7 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
     val data by vm.repo.receipt(id).collectAsState(initial = null)
     var editing by remember { mutableStateOf<ItemEntity?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var changeType by remember { mutableStateOf(false) }
 
     Scaffold(containerColor = Pal.Bg) { pad ->
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp,
@@ -133,6 +134,16 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
             val d = data ?: return@LazyColumn
             item {
                 BCard {
+                    val mType = MerchantType.fromName(d.receipt.merchantType)
+                    if (d.receipt.source != "MANUAL") Row(Modifier.clip(RoundedCornerShape(12.dp)).clickable { changeType = true }
+                        .padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        MerchantBadge(mType, 36)
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(mType.label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = merchantStyle(mType).fg)
+                            Text("Zmeniť typ prevádzky", fontSize = 12.sp, color = Pal.Muted)
+                        }
+                    }
                     Text(shortMerchant(d.receipt.merchantName), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                     Text(fmtDate(d.receipt.issuedAt), fontSize = 13.sp, color = Pal.Muted)
                     d.receipt.storeAddress?.let { Text(it, fontSize = 13.sp, color = Pal.Muted) }
@@ -162,6 +173,14 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
                 }
             }
         }
+    }
+
+    val rec = data?.receipt
+    if (changeType && rec?.merchantKey != null) {
+        MerchantTypeDialog(
+            sk.miro.blocky.data.MerchantEntity(rec.merchantKey, rec.merchantName, rec.merchantType ?: "UNKNOWN", false),
+            onPick = { t -> vm.answerMerchant(sk.miro.blocky.data.MerchantEntity(rec.merchantKey, rec.merchantName, t.name, true), t); changeType = false },
+            onLater = { changeType = false })
     }
 
     editing?.let { item ->

@@ -17,14 +17,22 @@ enum class Category(val label: String, val essential: Boolean, val benchmarkShar
     DROGERIA("Drogéria a hygiena", true, null),
     DOMACNOST("Domácnosť", true, null),
     ZDRAVIE("Lekáreň a zdravie", true, null),
+    ZVIERATA("Zvieratá", true, null),
     RESTAURACIE("Reštaurácie a fast food", false, 0.15),
+    UBYTOVANIE("Ubytovanie", false, null),
+    VOLNY_CAS("Wellness, šport, zábava", false, null),
+    OBLECENIE("Oblečenie a obuv", false, null),
+    ELEKTRONIKA("Elektronika", false, null),
+    SLUZBY("Služby", true, null),
     PHM("Pohonné hmoty", true, null),
-    ZALOHY("Zálohy na obaly", true, null),
+    /** Vratné zálohy – sledujú sa ZVLÁŠŤ, nezapočítavajú sa do výdavkov. */
+    ZALOHY("Zálohy za fľaše a plechovky", true, null),
     ZLAVY("Zľavy", true, null),
     INE("Iné", false, null);
 
     companion object {
         fun fromName(n: String): Category = entries.firstOrNull { it.name == n } ?: INE
+        val FOOD = setOf(MASO, MLIECNE, PECIVO, OVOCIE_ZELENINA, TRVANLIVE, MRAZENE_HOTOVE, NAPOJE, SLADKOSTI)
     }
 }
 
@@ -38,24 +46,28 @@ object Categorizer {
             .trim()
     }
 
+    private val depositKeys = listOf("zaloh", "zal.", "zal ", "vratn", "vykup obal", "vratenie obal", "pfand", "deposit")
+
     // Kľúčové slovo musí byť na začiatku slova ("gin" nezachytí "Ibalgin").
     // Poradie je dôležité: špecifickejšie kategórie skôr (napr. "pivo" pred "nápoje").
     private val rules: List<Pair<Category, List<String>>> = listOf(
-        Category.ZALOHY to listOf("zaloha", "zal.", "vratny obal", "plast. flasa zal", "plechovka zal"),
         Category.ZLAVY to listOf("zlava", "kupon", "bonus", "vernostn"),
         Category.TABAK to listOf("cigaret", "tabak", "marlboro", "camel", "l m ", "lm red", "west ", "petra ",
             "iqos", "heets", "terea", "glo ", "neo stick", "e-cig", "vape", "zapalovac"),
         Category.ALKOHOL to listOf("pivo", "lezak", "lager", "radler", "vino", "vin.", "sekt", "prosecco",
             "vodka", "borovick", "slivovic", "hruskovic", "rum", "whisk", "gin ", "liker", "jager", "becherovk",
             "fernet", "tatratea", "demanovk", "pilsner", "zlaty bazant", "smadny mnich", "kelt", "corgon",
-            "staropramen", "budweiser", "heineken", "kozel", "saris", "steiger", "cider", "frisco"),
+            "staropramen", "budweiser", "heineken", "kozel", "saris", "steiger", "cider", "frisco", "tokaj",
+            "frankovk", "veltlin", "rizling", "cabernet", "merlot", "chardonnay", "sauvignon", "muller"),
+        Category.ZVIERATA to listOf("krmivo", "granule", "pedigree", "whiskas", "felix", "friskies", "kitekat",
+            "purina", "stelivo", "podstielk", "pre psov", "pre macky", "pamlsk"),
         Category.SLADKOSTI to listOf("cokolad", "cokol", "tycink", "keks", "susienk", "oblat", "chips", "cipsy",
             "chrumk", "bonbon", "cukrik", "zuvack", "gumene", "haribo", "milka", "kinder", "orion", "horalk",
             "zmrzlin", "nanuk", "croissant cok", "muffin", "dezert", "torta",
             "pukance", "slane tycinky", "arasid", "orechy solen", "lentilk", "mars", "snickers", "twix",
             "kitkat", "kit kat", "bounty", "tatranka", "deli", "fidorka", "studentska", "pringles", "doritos", "lays",
             "bake rolls", "krekr"),
-        Category.NAPOJE to listOf("kofola", "coca", "cola", "pepsi", "fanta", "sprite", "mineral", 
+        Category.NAPOJE to listOf("kofola", "coca", "cola", "pepsi", "fanta", "sprite", "mineral",
             "voda ", "budis", "rajec", "mattoni", "salvator", "dzus", "juice", "nektar", "limonad",
             "sirup", "ladovy caj", "ice tea", "energet", "red bull", "monster", "semtex", "big shock", "kava ",
             "kava,", "caj ", "nescafe", "jacobs", "tchibo", "rauch", "relax", "hello", "vinea", "tonic", "smoothie"),
@@ -98,40 +110,36 @@ object Categorizer {
             "verva", "maxx motion", "v-power", "efix", "palivo", "tankovanie")
     )
 
-    private val merchantRules: List<Pair<Category, List<String>>> = listOf(
-        Category.PHM to listOf("slovnaft", "omv", "shell", "orlen", "mol ", "jurki", "lukoil"),
-        Category.RESTAURACIE to listOf("mcdonald", "kfc", "burger king", "subway", "bistro", "restaur", "pizzeria",
-            "kaviaren", "cafe", "pub", "krcma", "kebab", "gyros", "sushi", "jedalen", "foodora", "wolt", "bolt food",
-            "starbucks", "costa coffee", "panta rhei cafe", "salas"),
-        Category.ZDRAVIE to listOf("lekaren", "dr.max", "dr. max", "benu", "schneider lekaren"),
-        Category.DROGERIA to listOf("dm drogerie", "teta drogerie", "rossmann", "douglas", "notino"),
-        Category.DOMACNOST to listOf("ikea", "hornbach", "obi ", "baumax", "mountfield", "jysk", "pepco", "action")
-    )
-
     /**
      * Kategorizuje položku. Poradie:
-     * 1) ručné pravidlo používateľa, 2) typ položky (zľava/záloha),
-     * 3) obchod, kde je celý nákup jednej kategórie (pumpa, reštaurácia), 4) kľúčové slová v názve.
+     * 1) ručné pravidlo používateľa (názov položky → kategória),
+     * 2) záloha za obal (vždy samostatná skupina),
+     * 3) TYP PREVÁDZKY: reštaurácia / hotel / wellness / oblečenie… → celý bloček do jednej kategórie,
+     * 4) zľava (záporná položka),
+     * 5) kľúčové slová v názve položky,
+     * 6) náhradná kategória podľa typu prevádzky (napr. lekáreň → Zdravie).
      */
-    fun categorize(
+    fun categorizeItem(
         itemName: String,
-        merchantName: String,
+        merchantType: MerchantType,
         priceCents: Long,
         userRules: Map<String, Category> = emptyMap()
     ): Category {
         val n = normalize(itemName)
         userRules[n]?.let { return it }
         val padded = " $n "
+        if (depositKeys.any { padded.contains(" $it") }) return Category.ZALOHY
+        merchantType.single?.let { return it }
         if (priceCents < 0 && (n.contains("zlav") || n.contains("kupon") || n.isBlank())) return Category.ZLAVY
-
-        val m = normalize(merchantName)
-        val merchantCat = merchantRules.firstOrNull { (_, keys) -> keys.any { m.contains(it) } }?.first
-        // Na pumpe sa dá kúpiť aj káva/cigarety – názov položky má prednosť pred obchodom, okrem reštaurácií.
-        if (merchantCat == Category.RESTAURACIE) {
-            if (rules.first { it.first == Category.ALKOHOL }.second.any { padded.contains(" $it") }) return Category.ALKOHOL
-            return Category.RESTAURACIE
-        }
         val byName = rules.firstOrNull { (_, keys) -> keys.any { k -> padded.contains(" $k") } }?.first
-        return byName ?: merchantCat ?: Category.INE
+        return byName ?: merchantType.fallback
     }
+
+    /** Skratka: typ prevádzky sa určí z jej názvu. */
+    fun categorize(
+        itemName: String,
+        merchantName: String,
+        priceCents: Long,
+        userRules: Map<String, Category> = emptyMap()
+    ): Category = categorizeItem(itemName, MerchantResolver.resolve(merchantName), priceCents, userRules)
 }

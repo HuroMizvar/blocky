@@ -17,6 +17,7 @@ data class DashboardState(
     val report: MonthReport? = null,
     val recommendations: List<Recommendation> = emptyList(),
     val budgets: Map<Category, Long> = emptyMap(),
+    val profile: HouseholdProfile = HouseholdProfile(),
     val loading: Boolean = true
 )
 
@@ -24,24 +25,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val repo = Repository(app)
 
     private val selectedMonth = MutableStateFlow(YearMonth.now())
+    private val _profile = MutableStateFlow(repo.profile)
+    val profile: StateFlow<HouseholdProfile> = _profile
 
     val receipts = repo.receipts.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val rows = repo.itemRows.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val state: StateFlow<DashboardState> =
-        combine(rows, repo.budgets, selectedMonth) { r, b, m ->
+        combine(rows, repo.budgets, selectedMonth, _profile) { r, b, m, prof ->
             val budgets = b.associate { Category.fromName(it.category) to it.monthlyCents }
             val months = (Analytics.availableMonths(r) + YearMonth.now()).distinct().sortedDescending()
             val report = Analytics.report(r, m, budgets)
-            DashboardState(months, m, report, Analytics.recommendations(r, report), budgets, loading = false)
+            DashboardState(months, m, report, Analytics.recommendations(r, report, profile = prof), budgets, prof, loading = false)
         }.flowOn(Dispatchers.Default)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardState())
 
     /** Súčet za aktuálny mesiac – zobrazuje sa na skeneri. */
     val monthTotal: StateFlow<Long> = rows.map { r ->
         val now = YearMonth.now()
-        r.filter { Analytics.monthOf(it.issuedAt) == now }.sumOf { it.priceCents }
+        r.filter { Analytics.monthOf(it.issuedAt) == now && it.category != Category.ZALOHY.name }.sumOf { it.priceCents }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     private val _scan = MutableStateFlow<ScanUi>(ScanUi.Idle)
@@ -86,17 +89,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val openPending = repo.openPending.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Volá kamera pri každom rozpoznaní QR. Rovnaký kód sa ignoruje, kým je v zábere. */
+    /** Volá kamera pri každom rozpoznaní QR. Rovnaký kód sa ignoruje, kým je v zábere (a 4 s potom). */
     fun onQrFast(raw: String) {
         val now = System.currentTimeMillis()
-        if (raw == lastRaw && now - lastRawAt < 10_000) { lastRawAt = now; return }
+        if (raw == lastRaw && now - lastRawAt < 4_000) { lastRawAt = now; return }
         lastRaw = raw; lastRawAt = now
         val id = ++scanSeq
         viewModelScope.launch {
             when (val r = repo.enqueue(raw)) {
                 is EnqueueResult.Accepted -> { _immediate.value = null; _trackKey.value = id to r.key }
                 is EnqueueResult.AlreadyHave -> { _trackKey.value = null
-                    _immediate.value = ScanBanner(id, BannerKind.INFO, "Tento bloček už máte", null, r.receiptDbId) }
+                    _immediate.value = ScanBanner(id, BannerKind.DUPLICATE, "Tento bloček už máte!",
+                        r.existing?.let { duplicateText(it) } ?: "Rovnaký bloček ste už naskenovali.", r.existing?.id) }
                 is EnqueueResult.Invalid -> { _trackKey.value = null
                     _immediate.value = ScanBanner(id, BannerKind.ERROR, r.message, "Namierte na QR kód eKasa na bločku.", null) }
             }
@@ -104,6 +108,52 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clearBanner() { _immediate.value = null; _trackKey.value = null }
+
+    /** „Skenovať ďalší“ – zavrie hlásenie a dovolí hneď načítať aj ten istý QR (ukáže sa upozornenie na duplicitu). */
+    fun scanNext() { clearBanner(); lastRaw = null }
+
+    // ---------- Typ prevádzky ----------
+    val unknownMerchants = repo.unknownMerchants.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _skipped = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Otázka „čo je to za prevádzku?“ hneď po skene – ak prevádzku nepoznáme. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val scanQuestion: StateFlow<MerchantEntity?> = banner
+        .flatMapLatest { b ->
+            val id = b?.receiptDbId
+            if (b?.kind == BannerKind.OK && id != null) repo.observeReceipt(id) else flowOf(null)
+        }
+        .combine(unknownMerchants) { r, unk -> r?.merchantKey?.let { k -> unk.firstOrNull { it.mkey == k } } }
+        .combine(_skipped) { m, sk -> m?.takeIf { it.mkey !in sk } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    fun answerMerchant(m: MerchantEntity, type: MerchantType) =
+        viewModelScope.launch { repo.setMerchantType(m.mkey, m.name, type) }
+
+    fun skipMerchant(m: MerchantEntity) { _skipped.value = _skipped.value + m.mkey }
+
+    // ---------- AI analýza (text, ktorý používateľ sám zdieľa) ----------
+    fun aiSummary(options: AiExportOptions): String {
+        val st = state.value
+        return AiExport.build(rows.value, st.budgets, st.profile, st.recommendations, options)
+    }
+
+    // ---------- Profil domácnosti ----------
+    fun setProfile(p: HouseholdProfile) { repo.profile = p; _profile.value = p }
+
+    // ---------- Súkromie ----------
+    private val _autoUpdate = MutableStateFlow(repo.autoUpdate)
+    val autoUpdate: StateFlow<Boolean> = _autoUpdate
+    fun setAutoUpdate(on: Boolean) { repo.autoUpdate = on; _autoUpdate.value = on }
+
+    fun deleteEverything(done: () -> Unit) = viewModelScope.launch {
+        repo.deleteEverything()
+        _profile.value = repo.profile
+        _autoUpdate.value = repo.autoUpdate
+        _mock.value = repo.mockMode
+        clearBanner()
+        done()
+    }
 
     fun deletePending(key: String) = viewModelScope.launch { repo.deletePending(key) }
 
@@ -140,7 +190,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val updatePrompt: StateFlow<Boolean> = _updatePrompt
 
     init {
-        if (updater.enabled) checkUpdate(silent = true)
+        viewModelScope.launch(Dispatchers.IO) { repo.migrateIfNeeded() }
+        if (updater.enabled && repo.autoUpdate) checkUpdate(silent = true)
     }
 
     fun checkUpdate(silent: Boolean = false) = viewModelScope.launch {
@@ -182,17 +233,18 @@ sealed interface ScanUi {
     data class Done(val result: ScanResult) : ScanUi
 }
 
-enum class BannerKind { WAIT, OK, INFO, ERROR }
+enum class BannerKind { WAIT, OK, DUPLICATE, INFO, ERROR }
 
 /** [scanId] sa mení len pri novom skene (na vibráciu), stav v rámci skenu sa mení cez [kind]. */
 data class ScanBanner(val scanId: Int, val kind: BannerKind, val title: String, val sub: String?, val receiptDbId: Long?)
 
 fun PendingScanEntity.toBanner(scanId: Int): ScanBanner = when (status) {
-    "DONE" -> if (receiptDbId != null) ScanBanner(scanId, BannerKind.OK, "Uložené", message, receiptDbId)
-              else ScanBanner(scanId, BannerKind.INFO, "Tento bloček už máte", null, null)
+    "DONE" -> if (receiptDbId != null) ScanBanner(scanId, BannerKind.OK, "Bloček naskenovaný", message, receiptDbId)
+              else ScanBanner(scanId, BannerKind.DUPLICATE, "Tento bloček už máte!", null, null)
+    "DUP" -> ScanBanner(scanId, BannerKind.DUPLICATE, "Tento bloček už máte!", message, receiptDbId)
     "FAILED" -> ScanBanner(scanId, BannerKind.ERROR, "Bloček sa nepodarilo načítať", message, null)
-    else -> if (attempts == 0) ScanBanner(scanId, BannerKind.WAIT, "Bloček prijatý",
-                "Načítavam položky… Aplikáciu môžete zavrieť.", null)
-            else ScanBanner(scanId, BannerKind.WAIT, "Prijatý – položky načítam neskôr",
-                message ?: "Skúsim to znova automaticky.", null)
+    else -> if (attempts == 0) ScanBanner(scanId, BannerKind.WAIT, "Bloček naskenovaný",
+                "Načítavam položky… Môžete skenovať ďalší alebo zavrieť aplikáciu.", null)
+            else ScanBanner(scanId, BannerKind.WAIT, "Bloček naskenovaný",
+                (message ?: "Bez pripojenia.") + " Položky načítam automaticky neskôr.", null)
 }

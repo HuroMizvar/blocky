@@ -4,6 +4,26 @@ Naskenujete QR kód z pokladničného dokladu → aplikácia stiahne z portálu 
 (eKasa) všetky položky a ceny → každú položku zaradí do kategórie → mesačne vyhodnotí výdavky
 a navrhne, kde ušetriť.
 
+## Súkromie
+| Čo | Ako |
+|---|---|
+| Kde sú dáta | Len v telefóne – súkromné úložisko aplikácie (SQLite databáza `blocky.db`). Iné aplikácie k nej nemajú prístup. |
+| Cloud / zálohy | Žiadne. `allowBackup=false` + `data_extraction_rules.xml` – nič do Google Drive ani pri prenose na nový telefón. |
+| Reklamy, analytika, AI | Žiadne knižnice na reklamy ani analytiku; reklamné ID výslovne odstránené z manifestu; tipy počíta pravidlový kód, nie AI. |
+| Kamera | QR číta ZXing priamo v telefóne (bez Google ML Kit / Play služieb). |
+| Sieť | Len HTTPS: (1) eKasa Finančnej správy SR – ID dokladu → položky, (2) GitHub – číslo najnovšej verzie (vypínateľné). |
+| GDPR | Export (CSV) a „Zmazať všetko“ v Nastaveniach. Dáta spracúva len používateľ na svojom zariadení. |
+| AI analýza | Aplikácia sama nič neodosiela. Pripraví textový súhrn (súčty po kategóriách, bez adries/IČO/ID bločkov), používateľ ho skontroluje a sám zdieľa do AI aplikácie podľa výberu (`domain/AiExport.kt`). |
+
+Ikony kategórií: [Phosphor Icons](https://phosphoricons.com) (MIT), písmo: Plus Jakarta Sans (OFL) – licencie v `licenses/`.
+
+## Kategorizácia
+1. **Typ prevádzky** (obchod, pumpa, reštaurácia, hotel, wellness, lekáreň…) – podľa známych značiek/kľúčových slov; ak ho aplikácia nepozná, **opýta sa hneď po skene** a zapamätá si odpoveď (podľa IČO).
+2. Reštaurácia / hotel / wellness / oblečenie / elektronika / služby → celý bloček do jednej kategórie.
+3. Obchody a pumpy → každá položka podľa názvu (mäso, mliečne, alkohol, PHM…).
+4. **Zálohy** za fľaše a plechovky sú vždy samostatná skupina a do výdavkov sa nepočítajú.
+5. Ručná oprava položky má vždy prednosť.
+
 ## Rýchle skenovanie
 Aplikácia sa vždy otvorí rovno na skeneri (aj po návrate z pozadia po viac ako 1 minúte).
 Po rozpoznaní QR telefón zavibruje a sken sa hneď uloží – aplikáciu môžete okamžite zavrieť.

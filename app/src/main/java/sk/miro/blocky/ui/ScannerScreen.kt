@@ -2,19 +2,13 @@ package sk.miro.blocky.ui
 
 import android.Manifest
 import android.app.Activity
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PriorityHigh
-import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.unit.sp
-import androidx.core.view.WindowCompat
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Size
-import android.view.HapticFeedbackConstants
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.*
@@ -24,30 +18,52 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FlashlightOff
-import androidx.compose.material.icons.filled.FlashlightOn
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.google.mlkit.vision.barcode.BarcodeScannerOptions
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.common.InputImage
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.DecodeHintType
+import com.google.zxing.MultiFormatReader
+import com.google.zxing.NotFoundException
+import com.google.zxing.PlanarYUVLuminanceSource
+import com.google.zxing.common.HybridBinarizer
 import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
+
+/** Vibrácia nezávislá od systémového nastavenia „hmatová odozva“. */
+private fun vibrate(context: Context, pattern: LongArray) {
+    val v: Vibrator? = if (Build.VERSION.SDK_INT >= 31)
+        (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+    else context.getSystemService(Vibrator::class.java)
+    if (v == null || !v.hasVibrator()) return
+    if (pattern.size == 1) v.vibrate(VibrationEffect.createOneShot(pattern[0], VibrationEffect.DEFAULT_AMPLITUDE))
+    else v.vibrate(VibrationEffect.createWaveform(longArrayOf(0) + pattern, -1))
+}
+
+private val VIB_OK = longArrayOf(90)                         // jedno krátke
+private val VIB_DUP = longArrayOf(120, 110, 120, 110, 120)   // tri – pozor, duplicita
+private val VIB_ERR = longArrayOf(350)                       // dlhé
 
 @Composable
 fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long) -> Unit) {
@@ -68,34 +84,43 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
     }
 
     val banner by vm.banner.collectAsState()
+    val question by vm.scanQuestion.collectAsState()
     val mock by vm.mockMode.collectAsState()
     val monthTotal by vm.monthTotal.collectAsState()
-    var torch by remember { mutableStateOf(false) }
+    var torch by remember { mutableStateOf(false) }   // blesk je predvolene vypnutý
     var camera by remember { mutableStateOf<Camera?>(null) }
     var manual by remember { mutableStateOf(false) }
 
-    LaunchedEffect(banner?.scanId) {
-        if (banner != null) view.performHapticFeedback(
-            if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.LONG_PRESS)
+    // Vibrácia: pri novom skene a pri zmene na duplicitu / chybu.
+    LaunchedEffect(banner?.scanId, banner?.kind) {
+        when (banner?.kind) {
+            BannerKind.WAIT -> vibrate(context, VIB_OK)
+            BannerKind.DUPLICATE -> vibrate(context, VIB_DUP)
+            BannerKind.ERROR -> vibrate(context, VIB_ERR)
+            else -> Unit
+        }
     }
-    LaunchedEffect(banner) {
+    // Hotové hlásenie po chvíli zmizne (nie počas otázky na prevádzku).
+    LaunchedEffect(banner, question) {
         val b = banner ?: return@LaunchedEffect
-        if (b.kind != BannerKind.WAIT) { delay(if (b.kind == BannerKind.ERROR) 8000 else 6000); vm.clearBanner() }
+        if (question == null && b.kind != BannerKind.WAIT) {
+            delay(if (b.kind == BannerKind.OK) 8000 else 12000); vm.clearBanner()
+        }
     }
 
     Box(Modifier.fillMaxSize().background(Pal.Camera)) {
         if (granted) {
             CameraPreview(onCamera = { camera = it }) { raw -> vm.onQrFast(raw) }
-            ScanFrame(Modifier.align(Alignment.Center).offset(y = (-90).dp))
+            ScanFrame(Modifier.align(Alignment.Center).offset(y = (-100).dp))
         } else {
-            Column(Modifier.align(Alignment.Center).offset(y = (-90).dp).padding(24.dp),
+            Column(Modifier.align(Alignment.Center).offset(y = (-100).dp).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Aplikácia potrebuje prístup ku kamere.", color = Color.White, fontSize = 16.sp)
                 Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }, shape = RoundedCornerShape(16.dp)) { Text("Povoliť kameru") }
             }
         }
 
-        // horná lišta: suma za mesiac + svetlo
+        // horná lišta: suma za mesiac + blesk
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -103,9 +128,13 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
                     color = Color(0xFFD7DDD9), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Text(eur(monthTotal), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
             }
-            IconButton(onClick = { torch = !torch; camera?.cameraControl?.enableTorch(torch) },
-                modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = if (torch) 0.35f else 0.14f))) {
-                Icon(if (torch) Icons.Default.FlashlightOff else Icons.Default.FlashlightOn, "Svetlo", tint = Color.White)
+            IconButton(
+                onClick = { torch = !torch; camera?.cameraControl?.enableTorch(torch) },
+                modifier = Modifier.size(48.dp).clip(CircleShape)
+                    .background(if (torch) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.14f))
+            ) {
+                Icon(if (torch) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                    if (torch) "Vypnúť blesk" else "Zapnúť blesk", tint = if (torch) Pal.Ink else Color.White)
             }
         }
 
@@ -115,7 +144,9 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
             .navigationBarsPadding().padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             val b = banner
-            if (b != null) ScanBannerCard(b, onOpen = { id -> vm.clearBanner(); onOpenReceipt(id) }, onClose = vm::clearBanner)
+            if (b != null) ScanBannerCard(b,
+                onOpen = { id -> vm.clearBanner(); onOpenReceipt(id) },
+                onNext = vm::scanNext)
             else HintCard()
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onClick = onOpenApp, Modifier.weight(1f).height(54.dp), shape = RoundedCornerShape(16.dp),
@@ -129,6 +160,10 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
                 }
             }
         }
+    }
+
+    question?.let { m ->
+        MerchantTypeDialog(m, onPick = { t -> vm.answerMerchant(m, t) }, onLater = { vm.skipMerchant(m) })
     }
 
     if (manual) ManualEntryDialog(onDismiss = { manual = false }) { m, c, cat ->
@@ -146,7 +181,7 @@ private fun ScanFrame(modifier: Modifier) {
                 val sw = w.toPx(); val rad = r.toPx()
                 val left = a == Alignment.TopStart || a == Alignment.BottomStart
                 val top = a == Alignment.TopStart || a == Alignment.TopEnd
-                val path = androidx.compose.ui.graphics.Path().apply {
+                val path = Path().apply {
                     val x0 = if (left) sw / 2 else size.width - sw / 2
                     val y0 = if (top) sw / 2 else size.height - sw / 2
                     val xEnd = if (left) size.width else 0f
@@ -156,8 +191,7 @@ private fun ScanFrame(modifier: Modifier) {
                     quadraticTo(x0, y0, if (left) x0 + rad else x0 - rad, y0)
                     lineTo(xEnd, y0)
                 }
-                drawPath(path, Color.White, style = androidx.compose.ui.graphics.drawscope.Stroke(width = sw,
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                drawPath(path, Color.White, style = Stroke(width = sw, cap = StrokeCap.Round))
             })
         }
     }
@@ -179,43 +213,62 @@ private fun HintCard() {
 }
 
 @Composable
-private fun ScanBannerCard(b: ScanBanner, onOpen: (Long) -> Unit, onClose: () -> Unit) {
+private fun ScanBannerCard(b: ScanBanner, onOpen: (Long) -> Unit, onNext: () -> Unit) {
+    val dup = b.kind == BannerKind.DUPLICATE
     val (circle, icon) = when (b.kind) {
         BannerKind.OK, BannerKind.WAIT -> Pal.Green to Icons.Default.Check
+        BannerKind.DUPLICATE -> Color(0xFFE08A00) to Icons.Default.ContentCopy
         BannerKind.INFO -> Pal.Muted to Icons.Default.Info
         BannerKind.ERROR -> Pal.Red to Icons.Default.PriorityHigh
     }
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Card).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(44.dp).clip(CircleShape).background(circle), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = Color.White, modifier = Modifier.size(24.dp))
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(b.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Pal.Ink, maxLines = 2)
-            b.sub?.let { Text(it, fontSize = 13.sp, color = Pal.Muted, maxLines = 2) }
-        }
-        when {
-            b.kind == BannerKind.WAIT -> CircularProgressIndicator(Modifier.size(22.dp), color = Pal.Green, strokeWidth = 2.5.dp)
-            b.receiptDbId != null -> TextButton(onClick = { onOpen(b.receiptDbId) }) {
-                Text("Detail", color = Pal.Green, fontWeight = FontWeight.Bold)
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+        .background(if (dup) Color(0xFFFFF3DC) else Pal.Card).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(44.dp).clip(CircleShape).background(circle), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = Color.White, modifier = Modifier.size(24.dp))
             }
-            else -> IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Zavrieť", tint = Pal.Muted) }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(b.title, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold,
+                    color = if (dup) Color(0xFF8A4B00) else Pal.Ink, maxLines = 2)
+                b.sub?.let { Text(it, fontSize = 13.sp, color = Pal.Muted, maxLines = 3) }
+            }
+            if (b.kind == BannerKind.WAIT)
+                CircularProgressIndicator(Modifier.size(22.dp), color = Pal.Green, strokeWidth = 2.5.dp)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(onClick = onNext, Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Pal.Green, contentColor = Color.White)) {
+                Icon(Icons.Default.QrCodeScanner, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
+                Text("Skenovať ďalší", fontWeight = FontWeight.Bold)
+            }
+            if (b.receiptDbId != null) OutlinedButton(onClick = { onOpen(b.receiptDbId) }, Modifier.height(46.dp),
+                shape = RoundedCornerShape(14.dp)) {
+                Text(if (dup) "Pôvodný" else "Detail", color = Pal.Ink, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
 
-@androidx.annotation.OptIn(markerClass = [ExperimentalGetImage::class])
+/**
+ * Kamera + čítanie QR cez ZXing priamo v telefóne.
+ * Žiadne Google služby, žiadne sieťové spojenie – obraz z kamery neopustí zariadenie.
+ */
 @Composable
 private fun CameraPreview(onCamera: (Camera) -> Unit, onQr: (String) -> Unit) {
-    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val executor = remember { Executors.newSingleThreadExecutor() }
-    val scanner = remember {
-        BarcodeScanning.getClient(BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build())
+    val reader = remember {
+        MultiFormatReader().apply {
+            setHints(mapOf(
+                DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE),
+                DecodeHintType.TRY_HARDER to true
+            ))
+        }
     }
     val latestOnQr by rememberUpdatedState(onQr)
-    DisposableEffect(Unit) { onDispose { executor.shutdown(); scanner.close() } }
+    DisposableEffect(Unit) { onDispose { executor.shutdown() } }
 
     AndroidView(modifier = Modifier.fillMaxSize(), factory = { ctx ->
         val view = PreviewView(ctx).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
@@ -230,16 +283,21 @@ private fun CameraPreview(onCamera: (Camera) -> Unit, onQr: (String) -> Unit) {
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
             analysis.setAnalyzer(executor) { proxy ->
-                val media = proxy.image
-                if (media == null) { proxy.close(); return@setAnalyzer }
-                val img = InputImage.fromMediaImage(media, proxy.imageInfo.rotationDegrees)
-                scanner.process(img)
-                    .addOnSuccessListener { codes ->
-                        codes.firstNotNullOfOrNull { it.rawValue }?.let { raw ->
-                            ContextCompat.getMainExecutor(ctx).execute { latestOnQr(raw) }
-                        }
-                    }
-                    .addOnCompleteListener { proxy.close() }
+                try {
+                    val plane = proxy.planes[0]   // jas (Y) – na QR stačí
+                    val buf = plane.buffer
+                    val w = proxy.width; val h = proxy.height; val stride = plane.rowStride
+                    val data = ByteArray(w * h)
+                    buf.rewind()
+                    if (stride == w) buf.get(data, 0, w * h)
+                    else for (row in 0 until h) { buf.position(row * stride); buf.get(data, row * w, w) }
+                    val source = PlanarYUVLuminanceSource(data, w, h, 0, 0, w, h, false)
+                    val text = try {
+                        reader.decodeWithState(BinaryBitmap(HybridBinarizer(source))).text
+                    } catch (_: NotFoundException) { null } finally { reader.reset() }
+                    if (!text.isNullOrBlank()) ContextCompat.getMainExecutor(ctx).execute { latestOnQr(text) }
+                } catch (_: Exception) {
+                } finally { proxy.close() }
             }
             runCatching {
                 provider.unbindAll()

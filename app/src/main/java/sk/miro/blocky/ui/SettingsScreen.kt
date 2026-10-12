@@ -14,11 +14,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sk.miro.blocky.data.EkasaClient
 import sk.miro.blocky.data.ScanResult
+import sk.miro.blocky.data.duplicateText
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.sp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
-    Scaffold(topBar = {
+fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onExport: () -> Unit) {
+    Scaffold(containerColor = Pal.Bg, topBar = {
         TopAppBar(
             title = { Text("Nastavenia") },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Späť") } }
@@ -26,6 +29,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
             .padding(bottom = 32.dp)) {
+            PrivacySection(vm, onExport, onBack)
+            HorizontalDivider(Modifier.padding(top = 20.dp))
             UpdateSection(vm)
             HorizontalDivider(Modifier.padding(top = 20.dp))
             TestSection(vm)
@@ -48,6 +53,15 @@ private fun UpdateSection(vm: MainViewModel) {
     }
     Text("Zdroj: github.com/${up.repoName}", style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val auto by vm.autoUpdate.collectAsState()
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Kontrolovať pri spustení")
+            Text("Aplikácia sa len opýta GitHubu na číslo najnovšej verzie. Žiadne vaše dáta neposiela.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(auto, vm::setAutoUpdate)
+    }
     Spacer(Modifier.height(8.dp))
     when (val s = u) {
         UpdateUi.Idle -> Button(onClick = { vm.checkUpdate() }) { Text("Skontrolovať aktualizácie") }
@@ -146,7 +160,7 @@ private fun TestSection(vm: MainViewModel) {
         is ScanUi.Done -> {
             val (text, isErr) = when (val r = s.result) {
                 is ScanResult.Saved -> "Uložené: ${r.merchant}, ${r.items} položiek, ${eur(r.totalCents)}" to false
-                is ScanResult.Duplicate -> "Už uložené: ${r.receiptId}" to false
+                is ScanResult.Duplicate -> ("Tento bloček už máte: " + (r.existing?.let { duplicateText(it) } ?: r.receiptId)) to true
                 is ScanResult.Error -> r.message to true
             }
             Text(text, Modifier.padding(top = 8.dp),
@@ -166,4 +180,41 @@ private fun EndpointSection(vm: MainViewModel) {
         TextButton(onClick = { vm.repo.endpoint = endpoint }) { Text("Uložiť") }
         TextButton(onClick = { endpoint = EkasaClient.DEFAULT_ENDPOINT; vm.repo.endpoint = endpoint }) { Text("Predvolené") }
     }
+}
+
+@Composable
+private fun PrivacySection(vm: MainViewModel, onExport: () -> Unit, onDeleted: () -> Unit) {
+    var confirm by remember { mutableStateOf(false) }
+    SectionTitle("Súkromie a vaše dáta")
+    BCard(padding = PaddingValues(16.dp)) {
+        listOf(
+            "Bločky, položky, rozpočty a profil sú uložené len v tomto telefóne – v súkromnom úložisku aplikácie.",
+            "Bez účtu, bez cloudu, bez reklám, bez analytiky a bez reklamného ID.",
+            "Dáta sa nezálohujú do Google Drive ani neprenášajú na iný telefón.",
+            "QR kód sa číta priamo v telefóne. Obraz z kamery sa nikam neposiela.",
+            "Kategórie a tipy počítajú pravidlá v aplikácii – žiadna umelá inteligencia a nič sa nepoužíva na jej trénovanie.",
+            "Sieť sa používa len na: (1) načítanie položiek bločku z eKasa Finančnej správy SR podľa ID dokladu, " +
+                "(2) kontrolu aktualizácií na GitHube (dá sa vypnúť nižšie)."
+        ).forEach { line ->
+            Row(Modifier.padding(vertical = 4.dp)) {
+                Text("•", Modifier.width(14.dp), color = Pal.Green, fontWeight = FontWeight.Bold)
+                Text(line, fontSize = 13.sp, lineHeight = 18.sp)
+            }
+        }
+    }
+    Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = onExport, shape = RoundedCornerShape(14.dp)) { Text("Exportovať dáta (CSV)") }
+        Button(onClick = { confirm = true }, shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Pal.Red)) { Text("Zmazať všetko") }
+    }
+    if (confirm) AlertDialog(
+        onDismissRequest = { confirm = false },
+        containerColor = Pal.Card,
+        title = { Text("Zmazať všetky dáta?") },
+        text = { Text("Natrvalo sa zmažú všetky bločky, položky, rozpočty, pravidlá kategórií, prevádzky a profil domácnosti. Nedá sa to vrátiť.") },
+        confirmButton = {
+            TextButton(onClick = { confirm = false; vm.deleteEverything(onDeleted) }) { Text("Zmazať", color = Pal.Red, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = { TextButton(onClick = { confirm = false }) { Text("Zrušiť") } }
+    )
 }

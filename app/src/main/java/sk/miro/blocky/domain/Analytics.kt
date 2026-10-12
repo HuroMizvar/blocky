@@ -18,7 +18,30 @@ data class CategoryStat(
     val budgetCents: Long?
 )
 
-data class MerchantStat(val name: String, val cents: Long, val visits: Int)
+data class MerchantStat(val name: String, val cents: Long, val visits: Int, val type: MerchantType = MerchantType.UNKNOWN)
+
+/**
+ * Popis domácnosti, ktorý si používateľ vyplní pri tipoch. Ukladá sa len v telefóne.
+ * people = 0 → nevyplnené.
+ */
+data class HouseholdProfile(
+    val people: Int = 0,
+    val kids: Int = 0,
+    val carer: Boolean = false,
+    val pets: Boolean = false,
+    val car: Boolean = false,
+    /** voľný popis „o mne“ – použije sa LEN v texte pre AI analýzu, ktorý používateľ sám odošle */
+    val note: String = ""
+) {
+    val filled: Boolean get() = people > 0
+    fun summary(): String = if (!filled) "Nevyplnené" else buildList {
+        add(when (people) { 1 -> "1 osoba"; in 2..4 -> "$people osoby"; else -> "$people osôb" })
+        if (kids > 0) add(if (kids == 1) "1 dieťa" else "$kids deti")
+        if (carer) add("starám sa o blízkeho")
+        if (pets) add("zvieratá")
+        if (car) add("auto")
+    }.joinToString(" · ")
+}
 
 data class ItemAgg(val name: String, val category: Category, val cents: Long, val quantity: Double, val purchases: Int)
 
@@ -32,7 +55,12 @@ data class MonthReport(
     val merchants: List<MerchantStat>,
     val topItems: List<ItemAgg>,
     /** projekcia do konca mesiaca – len pre bežiaci mesiac */
-    val projectedTotalCents: Long?
+    val projectedTotalCents: Long?,
+    /** zálohy za obaly – nezapočítané v totalCents */
+    val depositPaidCents: Long = 0,
+    val depositReturnedCents: Long = 0,
+    /** potraviny a nápoje (bez reštaurácií) */
+    val foodCents: Long = 0
 )
 
 enum class Severity { HIGH, MEDIUM, INFO }
@@ -65,7 +93,12 @@ object Analytics {
         budgets: Map<Category, Long>,
         today: LocalDate = LocalDate.now(zone)
     ): MonthReport {
-        val byMonth = rows.groupBy { monthOf(it.issuedAt) }
+        val dep = Category.ZALOHY.name
+        val allCur = rows.filter { monthOf(it.issuedAt) == month }
+        val depositPaid = allCur.filter { it.category == dep && it.priceCents > 0 }.sumOf { it.priceCents }
+        val depositReturned = -allCur.filter { it.category == dep && it.priceCents < 0 }.sumOf { it.priceCents }
+        // Zálohy sú vratné → sledujú sa zvlášť a do výdavkov sa nepočítajú.
+        val byMonth = rows.filter { it.category != dep }.groupBy { monthOf(it.issuedAt) }
         val cur = byMonth[month].orEmpty()
         val prev = byMonth[month.minusMonths(1)].orEmpty()
         val hist = previousMonthsWithData(byMonth, month, 3)
@@ -89,7 +122,8 @@ object Analytics {
         }.sortedByDescending { it.cents }
 
         val merchants = cur.groupBy { it.merchantName }.map { (name, list) ->
-            MerchantStat(name, list.sumOf { it.priceCents }, list.map { it.receiptDbId }.distinct().size)
+            MerchantStat(name, list.sumOf { it.priceCents }, list.map { it.receiptDbId }.distinct().size,
+                MerchantType.fromName(list.first().merchantType))
         }.sortedByDescending { it.cents }
 
         val topItems = cur.filter { it.priceCents > 0 && it.category !in setOf(Category.ZALOHY.name, Category.ZLAVY.name) }
@@ -102,14 +136,17 @@ object Analytics {
         val projected = if (month == YearMonth.from(today) && today.dayOfMonth < month.lengthOfMonth() && total > 0)
             (total.toDouble() / today.dayOfMonth * month.lengthOfMonth()).roundToLong() else null
 
+        val food = cur.filter { Category.fromName(it.category) in Category.FOOD }.sumOf { it.priceCents }
         return MonthReport(month, total, prev.sumOf { it.priceCents }, avg3Total,
-            cur.map { it.receiptDbId }.distinct().size, categories, merchants, topItems, projected)
+            allCur.map { it.receiptDbId }.distinct().size, categories, merchants, topItems, projected,
+            depositPaid, depositReturned, food)
     }
 
     fun recommendations(
         rows: List<ItemRow>,
         report: MonthReport,
-        today: LocalDate = LocalDate.now(zone)
+        today: LocalDate = LocalDate.now(zone),
+        profile: HouseholdProfile = HouseholdProfile()
     ): List<Recommendation> {
         val out = mutableListOf<Recommendation>()
         val month = report.month
@@ -131,9 +168,17 @@ object Analytics {
             }
         }
 
+        // Kategórie, ktorých vyššie výdavky profil domácnosti vysvetľuje → nehlásiť ako nárast.
+        val expected = buildSet {
+            if (profile.carer) add(Category.ZDRAVIE)
+            if (profile.pets) add(Category.ZVIERATA)
+            if (profile.car) add(Category.PHM)
+            if (profile.kids > 0) { add(Category.DROGERIA) }
+        }
+
         // 2) Nárast oproti 3-mesačnému priemeru
         for (c in report.categories) {
-            if (c.category in skip) continue
+            if (c.category in skip || c.category in expected) continue
             val avg = c.avg3Cents ?: continue
             val diff = c.cents - avg
             if (avg > 0 && diff >= 1000 && c.cents > avg * 1.25) {
@@ -144,7 +189,9 @@ object Analytics {
 
         // 3) Podiel neesenciálnych kategórií nad orientačným stropom
         if (report.totalCents >= 10000) for (c in report.categories) {
-            val cap = c.category.benchmarkShare ?: continue
+            val base = c.category.benchmarkShare ?: continue
+            // S deťmi je prirodzene viac sladkostí a nápojov → strop o 3 p. b. vyšší.
+            val cap = if (profile.kids > 0 && c.category in setOf(Category.SLADKOSTI, Category.NAPOJE)) base + 0.03 else base
             if (c.share > cap) {
                 val excess = c.cents - (cap * report.totalCents).roundToLong()
                 out += Recommendation(Severity.MEDIUM, "${c.category.label} tvorí ${pct(c.share)} výdavkov",
@@ -197,24 +244,33 @@ object Analytics {
         if (small.size >= 8) out += Recommendation(Severity.MEDIUM, "${small.size} drobných nákupov pod 5 €",
             "Spolu ${eur(small.sum())}. Drobné nákupy často znamenajú impulzívne výdavky – skúste ich nahradiť jedným plánovaným nákupom.")
 
-        // 7) Opakované položky – kandidáti na väčšie balenie
-        cur.filter { it.priceCents > 0 && Category.fromName(it.category) !in skip }
+        // 7) Opakované položky – kandidáti na väčšie balenie (pri 1 osobe nie – riziko vyhadzovania)
+        if (profile.people != 1) cur.filter { it.priceCents > 0 && Category.fromName(it.category) !in skip }
             .groupBy { it.normName }
             .filter { (_, l) -> l.size >= 4 && l.sumOf { it.priceCents } >= 1500 }
             .entries.sortedByDescending { e -> e.value.sumOf { it.priceCents } }.take(3)
             .forEach { (_, l) -> out += Recommendation(Severity.INFO, "Často kupované: ${l.last().name}",
                 "${l.size}× tento mesiac za ${eur(l.sumOf { it.priceCents })}. Zvážte väčšie balenie alebo nákup v akcii.") }
 
-        // 8) Zálohy
-        val deposits = cur.filter { it.category == Category.ZALOHY.name }.sumOf { it.priceCents }
-        if (deposits >= 100) out += Recommendation(Severity.INFO, "Zálohy na obaly: ${eur(deposits)}",
-            "Vráťte fľaše a plechovky – tieto peniaze sa dajú získať späť.", deposits)
+        // 8) Zálohy (sledované zvlášť)
+        val deposits = report.depositPaidCents - report.depositReturnedCents
+        if (deposits >= 100) out += Recommendation(Severity.INFO, "Nevrátené zálohy: ${eur(deposits)}",
+            "Zaplatené ${eur(report.depositPaidCents)}, vrátené ${eur(report.depositReturnedCents)}. " +
+                "Vráťte fľaše a plechovky – tieto peniaze sa dajú získať späť.", deposits)
+
+        // 10) Potraviny na osobu (len ak je vyplnený profil domácnosti)
+        if (profile.filled && report.foodCents > 0) {
+            val perPerson = report.foodCents / profile.people
+            out += Recommendation(Severity.INFO, "Potraviny a nápoje: ${eur(perPerson)} na osobu",
+                "Spolu ${eur(report.foodCents)} pre ${profile.summary().substringBefore(" ·")}" +
+                    (if (profile.kids > 0) " (vrátane detí)" else "") + ". Bez reštaurácií.")
+        }
 
         // 9) Podiel neesenciálnych výdavkov celkovo
         val nonEss = report.categories.filter { !it.category.essential }.sumOf { it.cents }
         if (report.totalCents >= 10000 && nonEss.toDouble() / report.totalCents > 0.35)
             out += Recommendation(Severity.INFO, "Neesenciálne výdavky ${pct(nonEss.toDouble() / report.totalCents)}",
-                "Alkohol, tabak, sladkosti, nápoje, hotové jedlá a reštaurácie spolu ${eur(nonEss)}.")
+                "Alkohol, tabak, sladkosti, nápoje, hotové jedlá, reštaurácie, zábava a podobne – spolu ${eur(nonEss)}.")
 
         return out.sortedWith(compareBy<Recommendation> { it.severity.ordinal }.thenByDescending { it.estSavingCents ?: 0L })
     }

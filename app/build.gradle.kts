@@ -84,7 +84,8 @@ dependencies {
     implementation("androidx.camera:camera-camera2:$camerax")
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
-    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    // ZXing – čítanie QR priamo v telefóne, bez Google služieb a bez odosielania čohokoľvek
+    implementation("com.google.zxing:core:3.5.3")
 
     // Databáza
     val room = "2.6.1"

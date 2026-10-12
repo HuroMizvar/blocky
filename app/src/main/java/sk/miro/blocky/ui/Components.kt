@@ -3,15 +3,22 @@ package sk.miro.blocky.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.annotation.DrawableRes
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -22,7 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import sk.miro.blocky.R
 import sk.miro.blocky.domain.Analytics
+import sk.miro.blocky.data.MerchantEntity
 import sk.miro.blocky.domain.Category
+import sk.miro.blocky.domain.MerchantType
 import sk.miro.blocky.domain.Severity
 import java.time.YearMonth
 import java.time.format.TextStyle as JTextStyle
@@ -148,35 +157,108 @@ fun Tag(text: String, fg: Color, bg: Color) {
         color = fg, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
 }
 
-data class CatStyle(val abbr: String, val bg: Color, val fg: Color)
+/** Ikony: Phosphor Icons (duotone), licencia MIT – res/drawable/ph_*.xml */
+data class CatStyle(val bg: Color, val fg: Color, @DrawableRes val icon: Int)
 
 fun catStyle(c: Category): CatStyle = when (c) {
-    Category.MASO -> CatStyle("MA", Color(0xFFFCE7E2), Color(0xFFB3361B))
-    Category.MLIECNE -> CatStyle("ML", Color(0xFFE4ECF7), Color(0xFF2F5E9E))
-    Category.PECIVO -> CatStyle("PE", Color(0xFFFDF0DB), Color(0xFF9A5B06))
-    Category.OVOCIE_ZELENINA -> CatStyle("OZ", Color(0xFFE3F1E8), Color(0xFF1F7A4D))
-    Category.TRVANLIVE -> CatStyle("TR", Color(0xFFF1EEE6), Color(0xFF6B5D3F))
-    Category.MRAZENE_HOTOVE -> CatStyle("HJ", Color(0xFFE6F0F3), Color(0xFF2D6475))
-    Category.NAPOJE -> CatStyle("NA", Color(0xFFE2F2F7), Color(0xFF1F6A86))
-    Category.ALKOHOL -> CatStyle("AL", Color(0xFFF5E6EC), Color(0xFF9C3A5E))
-    Category.TABAK -> CatStyle("TA", Color(0xFFECE9E4), Color(0xFF5E564C))
-    Category.SLADKOSTI -> CatStyle("SL", Color(0xFFFBE8F2), Color(0xFFA23D78))
-    Category.DROGERIA -> CatStyle("DR", Color(0xFFEEEAF7), Color(0xFF5B4A9E))
-    Category.DOMACNOST -> CatStyle("DO", Color(0xFFEAF0E6), Color(0xFF4D6B37))
-    Category.ZDRAVIE -> CatStyle("ZD", Color(0xFFE3F3F1), Color(0xFF1D7268))
-    Category.RESTAURACIE -> CatStyle("RE", Color(0xFFFBEADF), Color(0xFFB4531F))
-    Category.PHM -> CatStyle("PH", Color(0xFFE7E9F8), Color(0xFF3C4BA0))
-    Category.ZALOHY -> CatStyle("ZÁ", Color(0xFFEFEFEA), Color(0xFF55605A))
-    Category.ZLAVY -> CatStyle("ZĽ", Color(0xFFE3F1E8), Color(0xFF1F7A4D))
-    Category.INE -> CatStyle("IN", Color(0xFFEFEFEA), Color(0xFF55605A))
+    Category.MASO -> CatStyle(Color(0xFFFCE7E2), Color(0xFFB3361B), R.drawable.ph_cow)
+    Category.MLIECNE -> CatStyle(Color(0xFFE4ECF7), Color(0xFF2F5E9E), R.drawable.ph_cheese)
+    Category.PECIVO -> CatStyle(Color(0xFFFDF0DB), Color(0xFF9A5B06), R.drawable.ph_bread)
+    Category.OVOCIE_ZELENINA -> CatStyle(Color(0xFFE3F1E8), Color(0xFF1F7A4D), R.drawable.ph_carrot)
+    Category.TRVANLIVE -> CatStyle(Color(0xFFF1EEE6), Color(0xFF6B5D3F), R.drawable.ph_grains)
+    Category.MRAZENE_HOTOVE -> CatStyle(Color(0xFFE6F0F3), Color(0xFF2D6475), R.drawable.ph_snowflake)
+    Category.NAPOJE -> CatStyle(Color(0xFFE2F2F7), Color(0xFF1F6A86), R.drawable.ph_drop)
+    Category.ALKOHOL -> CatStyle(Color(0xFFF5E6EC), Color(0xFF9C3A5E), R.drawable.ph_wine)
+    Category.TABAK -> CatStyle(Color(0xFFECE9E4), Color(0xFF5E564C), R.drawable.ph_cigarette)
+    Category.SLADKOSTI -> CatStyle(Color(0xFFFBE8F2), Color(0xFFA23D78), R.drawable.ph_cookie)
+    Category.DROGERIA -> CatStyle(Color(0xFFEEEAF7), Color(0xFF5B4A9E), R.drawable.ph_hand_soap)
+    Category.DOMACNOST -> CatStyle(Color(0xFFEAF0E6), Color(0xFF4D6B37), R.drawable.ph_broom)
+    Category.ZDRAVIE -> CatStyle(Color(0xFFE3F3F1), Color(0xFF1D7268), R.drawable.ph_pill)
+    Category.ZVIERATA -> CatStyle(Color(0xFFF3ECE3), Color(0xFF7A5230), R.drawable.ph_paw_print)
+    Category.RESTAURACIE -> CatStyle(Color(0xFFFBEADF), Color(0xFFB4531F), R.drawable.ph_fork_knife)
+    Category.UBYTOVANIE -> CatStyle(Color(0xFFE8EAF6), Color(0xFF3F4A9A), R.drawable.ph_bed)
+    Category.VOLNY_CAS -> CatStyle(Color(0xFFE0F2EE), Color(0xFF1F6F5F), R.drawable.ph_flower_lotus)
+    Category.OBLECENIE -> CatStyle(Color(0xFFF6E8F0), Color(0xFF8A3F6B), R.drawable.ph_t_shirt)
+    Category.ELEKTRONIKA -> CatStyle(Color(0xFFE7EBF0), Color(0xFF3E5468), R.drawable.ph_device_mobile)
+    Category.SLUZBY -> CatStyle(Color(0xFFEFECE6), Color(0xFF5E5547), R.drawable.ph_wrench)
+    Category.PHM -> CatStyle(Color(0xFFE7E9F8), Color(0xFF3C4BA0), R.drawable.ph_gas_pump)
+    Category.ZALOHY -> CatStyle(Color(0xFFE3F1E8), Color(0xFF2E6B47), R.drawable.ph_recycle)
+    Category.ZLAVY -> CatStyle(Color(0xFFE3F1E8), Color(0xFF1F7A4D), R.drawable.ph_tag)
+    Category.INE -> CatStyle(Color(0xFFEFEFEA), Color(0xFF55605A), R.drawable.ph_dots_three)
 }
 
 @Composable
 fun CatBadge(c: Category, size: Int = 38) {
     val s = catStyle(c)
     Box(Modifier.size(size.dp).clip(RoundedCornerShape((size / 3).dp)).background(s.bg), contentAlignment = Alignment.Center) {
-        Text(s.abbr, color = s.fg, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+        Icon(painterResource(s.icon), null, tint = s.fg, modifier = Modifier.size((size * 0.6f).dp))
     }
+}
+
+data class MerchantStyle(val bg: Color, val fg: Color, @DrawableRes val icon: Int)
+
+/** Ikona prevádzky podľa jej typu (namiesto log značiek – tie sú ochranné známky). */
+fun merchantStyle(t: MerchantType): MerchantStyle = when (t) {
+    MerchantType.GROCERY -> MerchantStyle(Color(0xFFE3F1E8), Color(0xFF1F7A4D), R.drawable.ph_basket)
+    MerchantType.FUEL -> MerchantStyle(Color(0xFFE7E9F8), Color(0xFF3C4BA0), R.drawable.ph_gas_pump)
+    MerchantType.RESTAURANT -> MerchantStyle(Color(0xFFFBEADF), Color(0xFFB4531F), R.drawable.ph_fork_knife)
+    MerchantType.HOTEL -> MerchantStyle(Color(0xFFE8EAF6), Color(0xFF3F4A9A), R.drawable.ph_bed)
+    MerchantType.WELLNESS -> MerchantStyle(Color(0xFFE0F2EE), Color(0xFF1F6F5F), R.drawable.ph_flower_lotus)
+    MerchantType.PHARMACY -> MerchantStyle(Color(0xFFE3F3F1), Color(0xFF1D7268), R.drawable.ph_first_aid_kit)
+    MerchantType.DRUGSTORE -> MerchantStyle(Color(0xFFEEEAF7), Color(0xFF5B4A9E), R.drawable.ph_spray_bottle)
+    MerchantType.HOME -> MerchantStyle(Color(0xFFEAF0E6), Color(0xFF4D6B37), R.drawable.ph_house)
+    MerchantType.CLOTHING -> MerchantStyle(Color(0xFFF6E8F0), Color(0xFF8A3F6B), R.drawable.ph_t_shirt)
+    MerchantType.ELECTRONICS -> MerchantStyle(Color(0xFFE7EBF0), Color(0xFF3E5468), R.drawable.ph_device_mobile)
+    MerchantType.SERVICES -> MerchantStyle(Color(0xFFEFECE6), Color(0xFF5E5547), R.drawable.ph_wrench)
+    MerchantType.OTHER -> MerchantStyle(Color(0xFFEFEFEA), Color(0xFF55605A), R.drawable.ph_storefront)
+    MerchantType.UNKNOWN -> MerchantStyle(Color(0xFFFDF0DB), Color(0xFF9A5B06), R.drawable.ph_question)
+}
+
+@Composable
+fun MerchantBadge(t: MerchantType, size: Int = 40) {
+    val s = merchantStyle(t)
+    Box(Modifier.size(size.dp).clip(CircleShape).background(s.bg), contentAlignment = Alignment.Center) {
+        Icon(painterResource(s.icon), t.label, tint = s.fg, modifier = Modifier.size((size * 0.56f).dp))
+    }
+}
+
+/** Otázka „Čo je to za prevádzku?“ – zobrazí sa, keď ju aplikácia nevie zaradiť. */
+@Composable
+fun MerchantTypeDialog(m: MerchantEntity, onPick: (MerchantType) -> Unit, onLater: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onLater,
+        containerColor = Pal.Card,
+        title = {
+            Column {
+                Text("Čo je to za prevádzku?", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                Spacer(Modifier.height(4.dp))
+                Text(m.name, fontSize = 14.sp, color = Pal.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Podľa toho správne zaradím tento aj ďalšie bločky z nej. Opýtam sa len raz.",
+                    fontSize = 13.sp, color = Pal.Muted)
+                MerchantType.choices.chunked(2).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row.forEach { t ->
+                            val st = merchantStyle(t)
+                            Row(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(st.bg)
+                                .clickable { onPick(t) }.padding(horizontal = 10.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Icon(painterResource(st.icon), null, tint = st.fg, modifier = Modifier.size(22.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(t.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Pal.Ink,
+                                    maxLines = 2, lineHeight = 16.sp)
+                            }
+                        }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onLater) { Text("Neskôr") } }
+    )
 }
 
 /** Riadok kategórie: odznak, názov, suma a pruh. */

@@ -20,7 +20,23 @@ data class ReceiptEntity(
     val issuedAt: Long,
     val totalCents: Long,
     val rawJson: String?,
-    val source: String // "EKASA" | "MANUAL" | "DEMO"
+    val source: String, // "EKASA" | "MANUAL" | "DEMO"
+    /** kľúč prevádzky (IČO alebo názov) – pozri MerchantResolver.key */
+    val merchantKey: String? = null,
+    /** MerchantType.name */
+    val merchantType: String? = null
+)
+
+/**
+ * Prevádzka. [type] = MerchantType.name. [userSet] = typ potvrdil používateľ
+ * (odpoveď na otázku „čo je to za prevádzku?“) – má prednosť pred automatikou.
+ */
+@Entity(tableName = "merchants")
+data class MerchantEntity(
+    @PrimaryKey val mkey: String,
+    val name: String,
+    val type: String,
+    val userSet: Boolean
 )
 
 @Entity(
@@ -65,7 +81,7 @@ data class CategoryRuleEntity(
 /**
  * Fronta naskenovaných QR kódov. Sken sa uloží okamžite (aplikáciu možno hneď zavrieť),
  * položky z eKasa sa načítajú na pozadí (FetchWorker) – aj neskôr, keď je signál.
- * status: PENDING | DONE | FAILED
+ * status: PENDING | DONE | DUP (už existujúci bloček) | FAILED
  */
 @Entity(tableName = "pending_scans")
 data class PendingScanEntity(
@@ -87,7 +103,8 @@ data class ItemRow(
     val priceCents: Long,
     val category: String,
     val merchantName: String,
-    val issuedAt: Long
+    val issuedAt: Long,
+    val merchantType: String? = null
 )
 
 data class ReceiptWithItems(
@@ -113,6 +130,53 @@ abstract class BlockyDao {
 
     @Query("SELECT COUNT(*) FROM receipts WHERE receiptId = :receiptId")
     abstract suspend fun countByReceiptId(receiptId: String): Int
+
+    @Query("SELECT * FROM receipts WHERE receiptId = :receiptId LIMIT 1")
+    abstract suspend fun receiptByReceiptId(receiptId: String): ReceiptEntity?
+
+    @Query("SELECT * FROM receipts WHERE id = :id")
+    abstract suspend fun receiptById(id: Long): ReceiptEntity?
+
+    @Query("SELECT * FROM receipts WHERE id = :id")
+    abstract fun observeReceipt(id: Long): Flow<ReceiptEntity?>
+
+    @Transaction
+    @Query("SELECT * FROM receipts")
+    abstract suspend fun allReceiptsWithItems(): List<ReceiptWithItems>
+
+    @Transaction
+    @Query("SELECT * FROM receipts WHERE merchantKey = :key")
+    abstract suspend fun receiptsWithItemsByMerchant(key: String): List<ReceiptWithItems>
+
+    @Query("UPDATE receipts SET merchantKey = :key, merchantType = :type WHERE id = :id")
+    abstract suspend fun setReceiptMerchant(id: Long, key: String?, type: String?)
+
+    @Query("UPDATE items SET category = :category WHERE id = :id")
+    abstract suspend fun setItemCategoryAuto(id: Long, category: String)
+
+    // ---- prevádzky ----
+    @Query("SELECT * FROM merchants WHERE mkey = :key")
+    abstract suspend fun merchant(key: String): MerchantEntity?
+
+    @Upsert
+    abstract suspend fun upsertMerchant(m: MerchantEntity)
+
+    /** Prevádzky, pri ktorých sa treba opýtať, čo sú zač. */
+    @Query("""SELECT * FROM merchants WHERE type = 'UNKNOWN' AND userSet = 0
+              AND mkey IN (SELECT merchantKey FROM receipts WHERE source != 'MANUAL') ORDER BY name""")
+    abstract fun unknownMerchants(): Flow<List<MerchantEntity>>
+
+    // ---- zmazanie všetkého (GDPR – právo na výmaz) ----
+    @Query("DELETE FROM receipts") abstract suspend fun clearReceipts()
+    @Query("DELETE FROM budgets") abstract suspend fun clearBudgets()
+    @Query("DELETE FROM category_rules") abstract suspend fun clearRules()
+    @Query("DELETE FROM pending_scans") abstract suspend fun clearPending()
+    @Query("DELETE FROM merchants") abstract suspend fun clearMerchants()
+
+    @Transaction
+    open suspend fun clearAll() {
+        clearReceipts(); clearBudgets(); clearRules(); clearPending(); clearMerchants()
+    }
 
     @Query("SELECT * FROM receipts ORDER BY issuedAt DESC")
     abstract fun receipts(): Flow<List<ReceiptEntity>>
@@ -140,13 +204,13 @@ abstract class BlockyDao {
     @Query("SELECT * FROM pending_scans WHERE status = 'PENDING' ORDER BY createdAt")
     abstract suspend fun pendingToProcess(): List<PendingScanEntity>
 
-    @Query("SELECT * FROM pending_scans WHERE status != 'DONE' ORDER BY createdAt DESC")
+    @Query("SELECT * FROM pending_scans WHERE status IN ('PENDING', 'FAILED') ORDER BY createdAt DESC")
     abstract fun openPending(): Flow<List<PendingScanEntity>>
 
     @Query("DELETE FROM pending_scans WHERE raw = :raw")
     abstract suspend fun deletePending(raw: String)
 
-    @Query("DELETE FROM pending_scans WHERE status = 'DONE' AND createdAt < :before")
+    @Query("DELETE FROM pending_scans WHERE status IN ('DONE', 'DUP') AND createdAt < :before")
     abstract suspend fun cleanupDone(before: Long)
 
     @Query("DELETE FROM receipts WHERE source = :source")
@@ -157,7 +221,7 @@ abstract class BlockyDao {
 
     @Query(
         """SELECT i.id AS itemId, i.receiptDbId, i.name, i.normName, i.quantity, i.priceCents,
-                  i.category, r.merchantName, r.issuedAt
+                  i.category, r.merchantName, r.issuedAt, r.merchantType
            FROM items i JOIN receipts r ON r.id = i.receiptDbId
            ORDER BY r.issuedAt"""
     )
@@ -187,8 +251,8 @@ abstract class BlockyDao {
 
 @Database(
     entities = [ReceiptEntity::class, ItemEntity::class, BudgetEntity::class, CategoryRuleEntity::class,
-        PendingScanEntity::class],
-    version = 2,
+        PendingScanEntity::class, MerchantEntity::class],
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -206,10 +270,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v3: typ prevádzky pri bločku + tabuľka prevádzok */
+        val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `receipts` ADD COLUMN `merchantKey` TEXT")
+                db.execSQL("ALTER TABLE `receipts` ADD COLUMN `merchantType` TEXT")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `merchants` (`mkey` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                        "`type` TEXT NOT NULL, `userSet` INTEGER NOT NULL, PRIMARY KEY(`mkey`))"
+                )
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "blocky.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build().also { instance = it }
         }
     }

@@ -26,7 +26,7 @@ class DemoDataTest {
 
         val rep = Analytics.report(rows, YearMonth.from(today), emptyMap(), today)
         val recs = Analytics.recommendations(rows, rep, today).map { it.title }
-        val expected = listOf("lacnejšie v", "Zdražené:", "drobných nákupov", "Zálohy")
+        val expected = listOf("lacnejšie v", "Zdražené:", "drobných nákupov", "zálohy")
         val hits = expected.count { e -> recs.any { it.contains(e) } }
         assertTrue("odporúčania: $recs", hits >= 3)
     }

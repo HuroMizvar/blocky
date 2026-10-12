@@ -133,7 +133,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    composable("settings") { SettingsScreen(vm) { nav.popBackStack() } }
+                    composable("settings") { SettingsScreen(vm, onBack = { nav.popBackStack() }, onExport = ::exportCsv) }
                     composable("scan") {
                         ScannerScreen(vm, onOpenApp = {
                             nav.navigate(Tab.REPORT.route) { launchSingleTop = true }
