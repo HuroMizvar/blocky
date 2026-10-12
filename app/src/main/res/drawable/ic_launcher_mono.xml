@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Jednofarebná verzia pre „tematické ikony“ (Android 13+) – systém ju prefarbí podľa tapety. -->
+<!-- Jednofarebná verzia pre „tematické ikony“ (Android 13+). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
     <group android:translateX="11" android:translateY="11" android:scaleX="0.84" android:scaleY="0.84">
-        <path android:fillColor="#FF000000" android:fillAlpha="0.55"
-            android:pathData="M22,16h40v58l-6.67,-5 -6.66,5 -6.67,-5 -6.67,5 -6.66,-5 -6.67,5z" />
-        <path android:fillColor="#FF000000" android:pathData="M64,44a20,20 0,1 1,0 40a20,20 0,1 1,0 -40z" />
+        <path android:strokeColor="#FF000000" android:strokeWidth="6" android:strokeLineCap="round"
+            android:pathData="M22,34V26a4,4 0,0 1,4,-4h8M66,22h8a4,4 0,0 1,4,4v8M78,66v8a4,4 0,0 1,-4,4h-8M34,78h-8a4,4 0,0 1,-4,-4v-8" />
+        <path android:fillColor="#FF000000" android:pathData="M38,30h24v38l-4,-3 -4,3 -4,-3 -4,3 -4,-3 -4,3z" />
     </group>
 </vector>

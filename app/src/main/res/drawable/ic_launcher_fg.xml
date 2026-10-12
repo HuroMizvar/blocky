@@ -1,22 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ikona Bločky (návrh 5): bloček a zlatá minca s €. Popredie adaptívnej ikony, bezpečná zóna 66 dp. -->
+<!-- Ikona Bločky (návrh 6): skenovací rámik okolo bločku a zlatá skenovacia čiara. Bezpečná zóna 66 dp. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
     <group android:translateX="11" android:translateY="11" android:scaleX="0.84" android:scaleY="0.84">
-        <!-- bloček so zúbkovaným spodkom -->
-        <path android:fillColor="#FFFFFF" android:fillAlpha="0.94"
-            android:pathData="M22,16h40v58l-6.67,-5 -6.66,5 -6.67,-5 -6.67,5 -6.66,-5 -6.67,5z" />
-        <path android:fillColor="#B9DCC6" android:pathData="M31,27h22a2,2 0,0 1,0 4h-22a2,2 0,0 1,0 -4z" />
-        <path android:fillColor="#B9DCC6" android:pathData="M31,37h16a2,2 0,0 1,0 4h-16a2,2 0,0 1,0 -4z" />
-        <!-- minca -->
-        <path android:fillColor="#F2C14E" android:pathData="M64,44a20,20 0,1 1,0 40a20,20 0,1 1,0 -40z" />
-        <path android:strokeColor="#C8962A" android:strokeWidth="2"
-            android:pathData="M64,49a15,15 0,1 1,0 30a15,15 0,1 1,0 -30z" />
-        <!-- € -->
-        <path android:strokeColor="#17201B" android:strokeWidth="3.6" android:strokeLineCap="round"
-            android:pathData="M70.5,57.2A8.6,8.6 0,1 0,70.5 70.8" />
-        <path android:strokeColor="#17201B" android:strokeWidth="3" android:strokeLineCap="round"
-            android:pathData="M55.5,61.5H65.5M55.5,66.5H65.5" />
+        <!-- rohy zameriavača -->
+        <path android:strokeColor="#1F7A4D" android:strokeWidth="6" android:strokeLineCap="round"
+            android:pathData="M22,34V26a4,4 0,0 1,4,-4h8M66,22h8a4,4 0,0 1,4,4v8M78,66v8a4,4 0,0 1,-4,4h-8M34,78h-8a4,4 0,0 1,-4,-4v-8" />
+        <!-- bloček -->
+        <path android:fillColor="#1F7A4D"
+            android:pathData="M38,30h24v38l-4,-3 -4,3 -4,-3 -4,3 -4,-3 -4,3z" />
+        <path android:fillColor="#B9DCC6" android:pathData="M44.5,37h11a1.5,1.5 0,0 1,0 3h-11a1.5,1.5 0,0 1,0 -3z" />
+        <path android:fillColor="#B9DCC6" android:pathData="M44.5,44h7a1.5,1.5 0,0 1,0 3h-7a1.5,1.5 0,0 1,0 -3z" />
+        <!-- skenovacia čiara -->
+        <path android:fillColor="#F2C14E" android:pathData="M30,51h40a2,2 0,0 1,0 4h-40a2,2 0,0 1,0 -4z" />
     </group>
 </vector>
