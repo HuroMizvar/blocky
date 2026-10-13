@@ -67,6 +67,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Prečiarknuť / vrátiť položku (vrátený či reklamovaný tovar, omyl). */
     fun setExcluded(itemId: Long, excluded: Boolean) = viewModelScope.launch { repo.setExcluded(itemId, excluded) }
+    fun setQuantity(itemId: Long, qty: Double) = viewModelScope.launch { repo.setQuantity(itemId, qty) }
+    fun restoreItem(itemId: Long) = viewModelScope.launch { repo.restoreItem(itemId) }
 
     fun setBudget(c: Category, cents: Long?) = viewModelScope.launch { repo.setBudget(c, cents) }
 

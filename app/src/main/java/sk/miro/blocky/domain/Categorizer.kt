@@ -25,6 +25,7 @@ enum class Category(val label: String, val essential: Boolean, val benchmarkShar
     ELEKTRONIKA("Elektronika", false, null),
     SLUZBY("Služby", true, null),
     PHM("Pohonné hmoty", true, null),
+    AUTO_MOTO("Auto a moto", true, null),
     /** Vratné zálohy – sledujú sa ZVLÁŠŤ, nezapočítavajú sa do výdavkov. */
     ZALOHY("Zálohy za fľaše a plechovky", true, null),
     ZLAVY("Zľavy", true, null),
@@ -52,6 +53,13 @@ object Categorizer {
     // Poradie je dôležité: špecifickejšie kategórie skôr (napr. "pivo" pred "nápoje").
     private val rules: List<Pair<Category, List<String>>> = listOf(
         Category.ZLAVY to listOf("zlava", "kupon", "bonus", "vernostn"),
+        // pred TRVANLIVE kvôli slovu „olej“ (motorový olej ≠ slnečnicový)
+        Category.AUTO_MOTO to listOf("motorov", "motor. olej", "olej motor", "5w", "10w", "15w", "0w",
+            "ostrekov", "ostrekovac", "kvapalina do ostrek", "antifriz", "nemrzn", "chladiaca kvapal",
+            "autokozmet", "autoshampon", "autosampon", "auto shampon", "stierac", "dialnicna znamka", "e-znamka",
+            "eznamka", "vignette", "pneu", "autobater", "autoziarov", "vonavka do auta", "osviezovac do auta",
+            "autoumyvar", "umyvanie auta", "umytie auta", "car wash", "carwash", "program umyv", "vysavac auto",
+            "motocykl", "prilba", "brzdova kvapal", "olejovy filter", "vzduchovy filter", "snehove retaze"),
         Category.TABAK to listOf("cigaret", "tabak", "marlboro", "camel", "l m ", "lm red", "west ", "petra ",
             "iqos", "heets", "terea", "glo ", "neo stick", "e-cig", "vape", "zapalovac"),
         Category.ALKOHOL to listOf("pivo", "lezak", "lager", "radler", "vino", "vin.", "sekt", "prosecco",

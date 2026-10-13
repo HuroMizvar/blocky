@@ -66,14 +66,24 @@ data class ItemEntity(
     /** zľava priradená k tejto položke (kladné číslo, centy); priceCents je už po zľave */
     @ColumnInfo(defaultValue = "0") val discountCents: Long = 0,
     /** prečiarknutá položka – nezapočítava sa do výdavkov (vrátenie, reklamácia, omyl) */
-    @ColumnInfo(defaultValue = "0") val excluded: Boolean = false
-)
+    @ColumnInfo(defaultValue = "0") val excluded: Boolean = false,
+    /** pôvodné hodnoty z bločku, ak používateľ zmenil množstvo (null = nezmenené) */
+    val origQuantity: Double? = null,
+    val origPriceCents: Long? = null,
+    val origDiscountCents: Long? = null
+) {
+    /** položka bola ručne upravená (prečiarknutá alebo zmenené množstvo) */
+    val edited: Boolean get() = excluded || origQuantity != null
+}
 
 /** Bloček v zozname + súčet započítaných položiek (bez prečiarknutých). */
 data class ReceiptListRow(
     @Embedded val receipt: ReceiptEntity,
     val countedCents: Long?,
-    val excludedCount: Int
+    val excludedCount: Int,
+    /** počet ručne upravených položiek (prečiarknuté alebo zmenené množstvo) */
+    val editedCount: Int = 0,
+    val itemCount: Int = 0
 )
 
 @Entity(tableName = "budgets")
@@ -194,7 +204,10 @@ abstract class BlockyDao {
 
     @Query("""SELECT r.*,
                 (SELECT SUM(i.priceCents) FROM items i WHERE i.receiptDbId = r.id AND i.excluded = 0) AS countedCents,
-                (SELECT COUNT(*) FROM items i WHERE i.receiptDbId = r.id AND i.excluded = 1) AS excludedCount
+                (SELECT COUNT(*) FROM items i WHERE i.receiptDbId = r.id AND i.excluded = 1) AS excludedCount,
+                (SELECT COUNT(*) FROM items i WHERE i.receiptDbId = r.id
+                    AND (i.excluded = 1 OR i.origQuantity IS NOT NULL)) AS editedCount,
+                (SELECT COUNT(*) FROM items i WHERE i.receiptDbId = r.id AND i.priceCents > 0) AS itemCount
               FROM receipts r ORDER BY r.issuedAt DESC""")
     abstract fun receiptList(): Flow<List<ReceiptListRow>>
 
@@ -206,6 +219,14 @@ abstract class BlockyDao {
 
     @Query("DELETE FROM items WHERE id = :id")
     abstract suspend fun deleteItem(id: Long)
+
+    @Query("SELECT * FROM items WHERE id = :id")
+    abstract suspend fun itemById(id: Long): ItemEntity?
+
+    @Query("""UPDATE items SET quantity = :qty, priceCents = :price, discountCents = :discount,
+              origQuantity = :origQty, origPriceCents = :origPrice, origDiscountCents = :origDiscount WHERE id = :id""")
+    abstract suspend fun setItemQuantity(id: Long, qty: Double, price: Long, discount: Long,
+                                         origQty: Double?, origPrice: Long?, origDiscount: Long?)
 
     @Transaction
     @Query("SELECT * FROM receipts WHERE id = :id")
@@ -279,7 +300,7 @@ abstract class BlockyDao {
 @Database(
     entities = [ReceiptEntity::class, ItemEntity::class, BudgetEntity::class, CategoryRuleEntity::class,
         PendingScanEntity::class, MerchantEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -317,10 +338,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v5: zmena množstva položky – pôvodné hodnoty z bločku */
+        val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `items` ADD COLUMN `origQuantity` REAL")
+                db.execSQL("ALTER TABLE `items` ADD COLUMN `origPriceCents` INTEGER")
+                db.execSQL("ALTER TABLE `items` ADD COLUMN `origDiscountCents` INTEGER")
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "blocky.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build().also { instance = it }
         }
     }

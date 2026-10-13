@@ -182,6 +182,7 @@ fun catStyle(c: Category): CatStyle = when (c) {
     Category.ELEKTRONIKA -> CatStyle(Color(0xFFE7EBF0), Color(0xFF3E5468), R.drawable.ph_device_mobile)
     Category.SLUZBY -> CatStyle(Color(0xFFEFECE6), Color(0xFF5E5547), R.drawable.ph_wrench)
     Category.PHM -> CatStyle(Color(0xFFE7E9F8), Color(0xFF3C4BA0), R.drawable.ph_gas_pump)
+    Category.AUTO_MOTO -> CatStyle(Color(0xFFE3EEF5), Color(0xFF2D6A8E), R.drawable.ph_car)
     Category.ZALOHY -> CatStyle(Color(0xFFE3F1E8), Color(0xFF2E6B47), R.drawable.ph_recycle)
     Category.ZLAVY -> CatStyle(Color(0xFFE3F1E8), Color(0xFF1F7A4D), R.drawable.ph_tag)
     Category.INE -> CatStyle(Color(0xFFEFEFEA), Color(0xFF55605A), R.drawable.ph_dots_three)
@@ -209,6 +210,7 @@ fun merchantStyle(t: MerchantType): MerchantStyle = when (t) {
     MerchantType.HOME -> MerchantStyle(Color(0xFFEAF0E6), Color(0xFF4D6B37), R.drawable.ph_house)
     MerchantType.CLOTHING -> MerchantStyle(Color(0xFFF6E8F0), Color(0xFF8A3F6B), R.drawable.ph_t_shirt)
     MerchantType.ELECTRONICS -> MerchantStyle(Color(0xFFE7EBF0), Color(0xFF3E5468), R.drawable.ph_device_mobile)
+    MerchantType.AUTO -> MerchantStyle(Color(0xFFE3EEF5), Color(0xFF2D6A8E), R.drawable.ph_car)
     MerchantType.SERVICES -> MerchantStyle(Color(0xFFEFECE6), Color(0xFF5E5547), R.drawable.ph_wrench)
     MerchantType.OTHER -> MerchantStyle(Color(0xFFEFEFEA), Color(0xFF55605A), R.drawable.ph_storefront)
     MerchantType.UNKNOWN -> MerchantStyle(Color(0xFFFDF0DB), Color(0xFF9A5B06), R.drawable.ph_question)
@@ -309,7 +311,7 @@ val CATEGORY_GROUPS: List<Pair<String, List<Category>>> = listOf(
         Category.TRVANLIVE, Category.MRAZENE_HOTOVE, Category.NAPOJE, Category.SLADKOSTI, Category.ALKOHOL, Category.TABAK),
     "Domácnosť a zdravie" to listOf(Category.DROGERIA, Category.DOMACNOST, Category.ZDRAVIE, Category.ZVIERATA),
     "Mimo domu" to listOf(Category.RESTAURACIE, Category.UBYTOVANIE, Category.VOLNY_CAS),
-    "Ostatné" to listOf(Category.OBLECENIE, Category.ELEKTRONIKA, Category.SLUZBY, Category.PHM,
+    "Ostatné" to listOf(Category.OBLECENIE, Category.ELEKTRONIKA, Category.SLUZBY, Category.PHM, Category.AUTO_MOTO,
         Category.ZALOHY, Category.ZLAVY, Category.INE)
 )
 

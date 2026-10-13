@@ -123,3 +123,11 @@ app/src/test/…            unit testy logiky (bežia aj v CI)
 - Offline doklady sa v eKasa objavia až po odoslaní pokladnicou (až 48 h) – skúste neskôr.
 - Porovnanie cien medzi obchodmi funguje len pre rovnako pomenované položky (obchody používajú rôzne názvy).
 - Kategorizácia je kľúčovými slovami – prvé týždne opravte nesprávne položky, aplikácia si to zapamätá.
+
+## Úprava bločku
+- Ťuknutím na položku v bločku: zmena kategórie, **počtu kusov** (napr. na bločku 2 kávy, platili ste 1 – cena aj zľava sa prepočítajú), prečiarknutie, obnovenie podľa bločku.
+- Upravené bločky a položky sú jemne podfarbené a majú štítok „upravený“.
+
+## Kategória Auto a moto
+- Autoservisy, pneuservisy, STK, autodiely a umyvárne sa celé zaradia do „Auto a moto“.
+- Autopotreby (motorový olej, ostrekovače, diaľničná známka…) sa rozpoznajú v ktoromkoľvek obchode.

@@ -163,17 +163,17 @@ class MainActivity : ComponentActivity() {
                 // Poradie: Prehľad · Bločky · Skenuj · Rozpočty · Tipy
                 val slots = listOf(Tab.REPORT, Tab.RECEIPTS, null, Tab.BUDGETS, Tab.TIPS)
                 slots.forEach { t ->
-                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                    Box(Modifier.weight(if (t == null) 1.3f else 1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                         if (t == null) {
-                            Column(Modifier.offset(y = (-10).dp).clickable(onClickLabel = "Skenuj", onClick = onScan),
-                                horizontalAlignment = Alignment.CenterHorizontally) {
-                                Box(Modifier.size(56.dp)
-                                    .shadow(10.dp, RoundedCornerShape(19.dp), ambientColor = Pal.Green, spotColor = Pal.Green)
-                                    .clip(RoundedCornerShape(19.dp)).background(Pal.Green), contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.QrCodeScanner, "Skenuj", tint = Color.White, modifier = Modifier.size(28.dp))
-                                }
-                                Spacer(Modifier.height(3.dp))
-                                Text("Skenuj", color = Pal.Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            // výrazné zelené tlačidlo – ikona aj nápis sú vnútri, nič sa neoreže
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp).height(58.dp)
+                                .shadow(8.dp, RoundedCornerShape(20.dp), ambientColor = Pal.Green, spotColor = Pal.Green)
+                                .clip(RoundedCornerShape(20.dp)).background(Pal.Green)
+                                .clickable(onClickLabel = "Skenovať bloček", onClick = onScan),
+                                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                Icon(Icons.Default.QrCodeScanner, null, tint = Color.White, modifier = Modifier.size(26.dp))
+                                Spacer(Modifier.height(2.dp))
+                                Text("Skenuj", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
                             }
                         } else {
                             val sel = current == t

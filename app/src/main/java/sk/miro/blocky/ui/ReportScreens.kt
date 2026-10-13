@@ -10,6 +10,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -111,14 +114,22 @@ fun ReportScreen(
                     Text("Nastaviť mesačný rozpočet", Modifier.clickable(onClick = onOpenBudgets).padding(vertical = 6.dp),
                         color = Pal.Green, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
-                Spacer(Modifier.height(4.dp))
-                Text(buildString {
-                    append("${r.receiptCount} bločkov · priemerný nákup ${eur(r.totalCents / r.receiptCount)}")
-                    r.projectedTotalCents?.let { append("\nOdhad do konca mesiaca (lineárne): ${eur(it)}") }
-                }, fontSize = 12.sp, color = Pal.Muted, lineHeight = 18.sp)
             }
         }
 
+        // rýchle údaje
+        item {
+            val isCurrent = r.month == YearMonth.now()
+            val days = if (isCurrent) LocalDate.now().dayOfMonth else r.month.lengthOfMonth()
+            Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile("Bločky", "${r.receiptCount}", Modifier.weight(1f))
+                StatTile("Priemerný nákup", eur(r.totalCents / r.receiptCount), Modifier.weight(1f))
+                if (isCurrent && r.projectedTotalCents != null) StatTile("Odhad mesiaca", eur(r.projectedTotalCents), Modifier.weight(1f))
+                else StatTile("Na deň", eur(r.totalCents / maxOf(1, days)), Modifier.weight(1f))
+            }
+        }
+
+        val cats = r.categories.filter { it.cents > 0L || it.budgetCents != null }
         item {
             SectionHeader("Kategórie") {
                 if (st.recommendations.isNotEmpty())
@@ -128,18 +139,51 @@ fun ReportScreen(
             }
         }
         item {
-            val cats = r.categories.filter { it.cents != 0L || it.budgetCents != null }
-            val max = cats.maxOfOrNull { maxOf(it.cents, it.budgetCents ?: 0L) } ?: 1L
-            BCard(padding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                cats.forEach { c ->
-                    val parts = listOfNotNull(
-                        "${Math.round(c.share * 100)} % výdavkov",
-                        deltaText(c.cents, c.avg3Cents, "priemer"),
-                        c.budgetCents?.let { "rozpočet ${eur(it)}" }
+            ExpandableCard(cats.size, initial = 6, what = "kategórie") { limit ->
+                // farebné rozdelenie výdavkov
+                SplitBar(cats.filter { it.cents > 0 }.map { catStyle(it.category).fg to it.share.toFloat() })
+                Spacer(Modifier.height(6.dp))
+                val max = cats.maxOfOrNull { maxOf(it.cents, it.budgetCents ?: 0L) } ?: 1L
+                cats.take(limit).forEach { c ->
+                    ListRow(
+                        leading = { CatBadge(c.category, 40) },
+                        title = c.category.label,
+                        subtitle = "${Math.round(c.share * 100)} % výdavkov" + (c.budgetCents?.let { " · rozpočet ${eur(it)}" } ?: ""),
+                        amount = c.cents,
+                        amountColor = if (c.budgetCents != null && c.cents > c.budgetCents) Pal.Red else Pal.Ink,
+                        trend = deltaPct(c.cents, c.avg3Cents),
+                        bar = c.cents.toFloat() / max to catStyle(c.category).fg,
+                        onClick = { onOpenItems("cat", c.category.name, r.month) }
                     )
-                    CategoryRow(c.category, c.cents, max, parts.joinToString(" · "),
-                        over = c.budgetCents != null && c.cents > c.budgetCents,
-                        onClick = { onOpenItems("cat", c.category.name, r.month) })
+                }
+            }
+        }
+
+        item { SectionHeader("Obchody") }
+        item {
+            ExpandableCard(r.merchants.size, initial = 5, what = "obchody") { limit ->
+                r.merchants.take(limit).forEach { m ->
+                    ListRow(
+                        leading = { MerchantBadge(m.type, 40) },
+                        title = shortMerchant(m.name),
+                        subtitle = "${m.visits}× nákup · ${m.type.label}",
+                        amount = m.cents,
+                        onClick = { onOpenItems("merchant", m.name, r.month) }
+                    )
+                }
+            }
+        }
+
+        item { SectionHeader("Najviac ste minuli za") }
+        item {
+            ExpandableCard(r.topItems.size, initial = 5, what = "položky") { limit ->
+                r.topItems.take(limit).forEach { i ->
+                    ListRow(
+                        leading = { CatBadge(i.category, 36) },
+                        title = i.name,
+                        subtitle = "${i.purchases}× · ${i.category.label}",
+                        amount = i.cents
+                    )
                 }
             }
         }
@@ -150,57 +194,95 @@ fun ReportScreen(
                 val net = r.depositPaidCents - r.depositReturnedCents
                 BCard(padding = PaddingValues(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CatBadge(Category.ZALOHY)
+                        CatBadge(Category.ZALOHY, 40)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(if (net > 0) "Na vrátenie čaká ${eur(net)}" else "Všetko vrátené",
                                 fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                            Text("Zaplatené ${eur(r.depositPaidCents)} · vrátené ${eur(r.depositReturnedCents)}",
+                            Text("Zaplatené ${eur(r.depositPaidCents)} · vrátené ${eur(r.depositReturnedCents)} · do výdavkov sa nepočítajú",
                                 fontSize = 12.sp, color = Pal.Muted)
                         }
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Text("Zálohy sú vratné, preto ich nepočítam do výdavkov.", fontSize = 12.sp, color = Pal.Muted)
                 }
             }
         }
+    }
+}
 
-        item { SectionHeader("Obchody") }
-        item {
-            BCard(padding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
-                r.merchants.take(8).forEach { m ->
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                        .clickable { onOpenItems("merchant", m.name, r.month) }
-                        .padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        MerchantBadge(m.type, 38)
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(shortMerchant(m.name), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${m.visits}× · ${m.type.label}", fontSize = 12.sp, color = Pal.Muted)
-                        }
-                        Text(eur(m.cents), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
+/** Malá dlaždica s jedným údajom. */
+@Composable
+private fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier.clip(RoundedCornerShape(18.dp)).background(Pal.Card).padding(horizontal = 12.dp, vertical = 12.dp)) {
+        Text(label, fontSize = 12.sp, color = Pal.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(2.dp))
+        Text(value, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+    }
+}
 
-        item { SectionHeader("Najväčšie položky") }
-        item {
-            BCard(padding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
-                r.topItems.take(10).forEach { i ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CatBadge(i.category, 32)
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(i.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${i.purchases}× · ${i.category.label}", fontSize = 12.sp, color = Pal.Muted)
-                        }
-                        Text(eur(i.cents), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
+/** Vodorovný pruh rozdelený podľa podielov kategórií. */
+@Composable
+private fun SplitBar(parts: List<Pair<Color, Float>>) {
+    if (parts.isEmpty()) return
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp).height(12.dp).clip(RoundedCornerShape(6.dp)).background(Pal.Track),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        parts.filter { it.second > 0.005f }.forEach { (c, w) ->
+            Box(Modifier.weight(w).fillMaxHeight().background(c))
+        }
+    }
+}
+
+/** Karta so zoznamom: zobrazí prvých [initial] riadkov, zvyšok po ťuknutí. */
+@Composable
+private fun ExpandableCard(total: Int, initial: Int, what: String, content: @Composable ColumnScope.(limit: Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    BCard(padding = PaddingValues(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 6.dp)) {
+        content(if (expanded) total else initial)
+        if (total > initial) {
+            HorizontalDivider(Modifier.padding(top = 4.dp), color = Pal.Track)
+            Text(if (expanded) "Zobraziť menej" else "Zobraziť všetky $what ($total)",
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { expanded = !expanded }
+                    .padding(vertical = 12.dp),
+                color = Pal.Green, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+    }
+}
+
+/** Jednotný riadok zoznamu: ikona, názov, popis, suma, voliteľne trend a pruh. */
+@Composable
+private fun ListRow(
+    leading: @Composable () -> Unit, title: String, subtitle: String, amount: Long,
+    amountColor: Color = Pal.Ink, trend: Int? = null, bar: Pair<Float, Color>? = null, onClick: (() -> Unit)? = null
+) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+        .padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        leading()
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, fontSize = 12.sp, color = Pal.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (bar != null) {
+                Spacer(Modifier.height(6.dp))
+                ProgressTrack(bar.first, bar.second, height = 5)
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(horizontalAlignment = Alignment.End) {
+            Text(eur(amount), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = amountColor)
+            if (trend != null && kotlin.math.abs(trend) >= 5) {
+                val up = trend > 0
+                Row(Modifier.padding(top = 2.dp).clip(RoundedCornerShape(6.dp))
+                    .background(if (up) Pal.AmberSoft else Pal.GreenSoft).padding(horizontal = 5.dp, vertical = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Icon(if (up) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward, null,
+                        tint = if (up) Pal.Amber else Pal.Green, modifier = Modifier.size(11.dp))
+                    Text("${kotlin.math.abs(trend)} %", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        color = if (up) Pal.Amber else Pal.Green)
                 }
             }
         }
+        if (onClick != null) Icon(Icons.Default.ChevronRight, null, tint = Pal.Faint, modifier = Modifier.size(20.dp))
     }
 }
 

@@ -8,6 +8,7 @@ import sk.miro.blocky.domain.Category
 import sk.miro.blocky.domain.Categorizer
 import sk.miro.blocky.domain.DiscountFolder
 import sk.miro.blocky.domain.HouseholdProfile
+import sk.miro.blocky.domain.ItemEdit
 import sk.miro.blocky.domain.MerchantResolver
 import sk.miro.blocky.domain.MerchantType
 import java.io.File
@@ -42,7 +43,7 @@ class Repository(private val context: Context) {
         /** pri exponenciálnom odstupe WorkManagera ≈ niekoľko dní pokusov */
         const val MAX_ATTEMPTS = 25
         /** zvýšiť, keď sa zmení logika kategorizácie → existujúce bločky sa preradia */
-        const val CATEGORIZER_VERSION = 3
+        const val CATEGORIZER_VERSION = 4
     }
 
     private val dao = AppDatabase.get(context).dao()
@@ -78,6 +79,21 @@ class Repository(private val context: Context) {
     val receipts = dao.receipts()
     val receiptList = dao.receiptList()
     suspend fun setExcluded(itemId: Long, excluded: Boolean) = dao.setExcluded(itemId, excluded)
+
+    /** Zmení množstvo položky (napr. na bločku 2 kávy, platil som 1). Cena a zľava sa prepočítajú pomerne. */
+    suspend fun setQuantity(itemId: Long, qty: Double) {
+        val item = dao.itemById(itemId) ?: return
+        val q = ItemEdit.quantity(item.quantity, item.priceCents, item.discountCents,
+            item.origQuantity, item.origPriceCents, item.origDiscountCents, qty)
+        dao.setItemQuantity(itemId, q.quantity, q.priceCents, q.discountCents, q.origQuantity, q.origPriceCents, q.origDiscountCents)
+    }
+
+    /** Vráti položku do pôvodného stavu z bločku (množstvo, cena, započítanie). */
+    suspend fun restoreItem(itemId: Long) {
+        val item = dao.itemById(itemId) ?: return
+        item.origQuantity?.let { setQuantity(itemId, it) }
+        if (item.excluded) dao.setExcluded(itemId, false)
+    }
     val itemRows = dao.allItemRows()
     val budgets = dao.budgets()
     fun receipt(id: Long) = dao.receiptWithItems(id)

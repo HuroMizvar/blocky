@@ -16,6 +16,7 @@ enum class MerchantType(val label: String, val single: Category?, val fallback: 
     HOME("Domácnosť, záhrada", null, Category.DOMACNOST),
     CLOTHING("Oblečenie, obuv", Category.OBLECENIE, Category.OBLECENIE),
     ELECTRONICS("Elektronika", Category.ELEKTRONIKA, Category.ELEKTRONIKA),
+    AUTO("Auto, moto, servis", Category.AUTO_MOTO, Category.AUTO_MOTO),
     SERVICES("Služby", Category.SLUZBY, Category.SLUZBY),
     OTHER("Iný obchod", null, Category.INE),
     UNKNOWN("Neznáma prevádzka", null, Category.INE);
@@ -58,7 +59,11 @@ object MerchantResolver {
             "mediamarkt", "istyle", "orange", "telekom", "o2", "4ka"),
         MerchantType.CLOTHING to listOf("zara", "reserved", "lpp", "ccc", "deichmann", "sinsay", "c a", "h m",
             "hennes", "new yorker", "takko", "primark", "bata", "humanic", "gant"),
-        MerchantType.SERVICES to listOf("kadernictvo", "kadernik", "barber", "salon", "autoservis", "pneuservis",
+        MerchantType.AUTO to listOf("autoservis", "pneuservis", "auto kelly", "autokelly", "inter cars", "intercars",
+            "autodiely", "auto diely", "autodielna", "autoopravovna", "stk", "emisna kontrola", "autoumyvaren",
+            "umyvaren", "car wash", "carwash", "pneumatiky", "pneu", "motoshop", "moto shop", "autosalon",
+            "autocentrum", "autoskla", "autolakovna", "vianor", "euromaster", "autobaterie"),
+        MerchantType.SERVICES to listOf("kadernictvo", "kadernik", "barber", "salon",
             "posta", "slovenska posta", "cistiaren", "oprava", "servis", "parkovanie", "parking", "taxi", "bolt",
             "zssk", "regiojet", "leo express", "dpb", "slovak lines")
     )
