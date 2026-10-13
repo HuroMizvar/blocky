@@ -14,7 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.RemoveCircleOutline
-import androidx.compose.material.icons.filled.Undo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,14 +31,15 @@ import sk.miro.blocky.data.ReceiptEntity
 import sk.miro.blocky.data.ReceiptListRow
 import androidx.compose.ui.text.style.TextDecoration
 
-/** Suma, ktorá sa započítava (bez prečiarknutých položiek). */
-val ReceiptListRow.counted: Long get() = countedCents ?: receipt.totalCents
 import sk.miro.blocky.domain.Analytics
 import sk.miro.blocky.domain.Category
 import sk.miro.blocky.domain.MerchantType
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+/** Suma, ktorá sa započítava (bez prečiarknutých položiek). */
+val ReceiptListRow.counted: Long get() = countedCents ?: receipt.totalCents
 
 private val DT = DateTimeFormatter.ofPattern("d. M. yyyy HH:mm")
 private val DAY = DateTimeFormatter.ofPattern("d. M. · HH:mm")
@@ -225,7 +226,7 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
                             Text(eur(item.priceCents), fontSize = 14.sp, fontWeight = FontWeight.Bold, textDecoration = strike,
                                 color = if (ex) Pal.Muted else Pal.Ink)
                             IconButton(onClick = { vm.setExcluded(item.id, !ex) }) {
-                                Icon(if (ex) Icons.Default.Undo else Icons.Default.RemoveCircleOutline,
+                                Icon(if (ex) Icons.AutoMirrored.Filled.Undo else Icons.Default.RemoveCircleOutline,
                                     if (ex) "Znova započítať" else "Prečiarknuť – nezapočítať",
                                     tint = if (ex) Pal.Green else Pal.Faint, modifier = Modifier.size(22.dp))
                             }

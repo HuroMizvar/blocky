@@ -188,13 +188,13 @@ class Repository(private val context: Context) {
         // Zľavy (záporné riadky) sa pripočítajú k produktu, ku ktorému patria.
         val folded = if (forced != null) p.items.map { DiscountFolder.Folded(it.priceCents, 0) }
             else DiscountFolder.fold(p.items.map { DiscountFolder.Line(it.name, it.priceCents, it.itemType) })
-        val items = p.items.zip(folded).mapNotNull { (it, f) ->
+        val items = p.items.zip(folded).mapNotNull { (src, f) ->
             if (f == null) return@mapNotNull null
-            val norm = Categorizer.normalize(it.name)
+            val norm = Categorizer.normalize(src.name)
             ItemEntity(
-                receiptDbId = 0, name = it.name, normName = norm, quantity = it.quantity,
-                priceCents = f.priceCents, vatRate = it.vatRate, itemType = it.itemType,
-                category = (forced ?: Categorizer.categorizeItem(it.name, mType, it.priceCents, userRules)).name,
+                receiptDbId = 0, name = src.name, normName = norm, quantity = src.quantity,
+                priceCents = f.priceCents, vatRate = src.vatRate, itemType = src.itemType,
+                category = (forced ?: Categorizer.categorizeItem(src.name, mType, src.priceCents, userRules)).name,
                 categoryManual = forced != null, discountCents = f.discountCents
             )
         }
