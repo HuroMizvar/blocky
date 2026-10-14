@@ -52,6 +52,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         if (stoppedAt > 0 && System.currentTimeMillis() - stoppedAt > 60_000) returnToScan.intValue++
+        vm.syncSoon()   // spoločná domácnosť: stiahnuť bločky ostatných členov
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,6 +87,8 @@ class MainActivity : ComponentActivity() {
                     },
                     confirmButton = { TextButton(onClick = vm::dismissUpdatePrompt) { Text("Neskôr") } }
                 )
+
+                HouseholdDialogs(vm)
 
                 // Po návrate z pozadia (>1 min) vždy otvoriť skener
                 val reset by returnToScan

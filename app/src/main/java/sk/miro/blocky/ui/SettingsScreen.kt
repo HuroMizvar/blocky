@@ -27,6 +27,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onExport: () -> Unit) 
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
             .padding(bottom = 32.dp)) {
+            HouseholdSection(vm)
+            HorizontalDivider(Modifier.padding(top = 20.dp))
             PrivacySection(vm, onExport, onBack)
             HorizontalDivider(Modifier.padding(top = 20.dp))
             UpdateSection(vm)
@@ -156,13 +158,14 @@ private fun PrivacySection(vm: MainViewModel, onExport: () -> Unit, onDeleted: (
     SectionTitle("Súkromie a vaše dáta")
     BCard(padding = PaddingValues(16.dp)) {
         listOf(
-            "Bločky, položky, rozpočty a profil sú uložené len v tomto telefóne – v súkromnom úložisku aplikácie.",
-            "Bez účtu, bez cloudu, bez reklám, bez analytiky a bez reklamného ID.",
-            "Dáta sa nezálohujú do Google Drive ani neprenášajú na iný telefón.",
+            "Bez spoločnej domácnosti sú bločky, položky, rozpočty a profil uložené len v tomto telefóne.",
+            "Spoločná domácnosť je voliteľná. Údaje sa zašifrujú v telefóne a server (Google Firebase, EÚ) " +
+                "dostane len zašifrovaný text – kľúč majú iba členovia domácnosti.",
+            "Bez Google účtu, bez reklám, bez analytiky a bez reklamného ID. Pre domácnosť sa vytvorí anonymný prístup bez mena a e-mailu.",
             "QR kód sa číta priamo v telefóne. Obraz z kamery sa nikam neposiela.",
             "Kategórie a tipy počítajú pravidlá v aplikácii – žiadna umelá inteligencia a nič sa nepoužíva na jej trénovanie.",
             "Sieť sa používa len na: (1) načítanie položiek bločku z eKasa Finančnej správy SR podľa ID dokladu, " +
-                "(2) kontrolu aktualizácií na GitHube (dá sa vypnúť nižšie)."
+                "(2) kontrolu aktualizácií na GitHube (dá sa vypnúť nižšie), (3) synchronizáciu domácnosti, ak ju zapnete."
         ).forEach { line ->
             Row(Modifier.padding(vertical = 4.dp)) {
                 Text("•", Modifier.width(14.dp), color = Pal.Green, fontWeight = FontWeight.Bold)
@@ -179,7 +182,7 @@ private fun PrivacySection(vm: MainViewModel, onExport: () -> Unit, onDeleted: (
         onDismissRequest = { confirm = false },
         containerColor = Pal.Card,
         title = { Text("Zmazať všetky dáta?") },
-        text = { Text("Natrvalo sa zmažú všetky bločky, položky, rozpočty, pravidlá kategórií, prevádzky a profil domácnosti. Nedá sa to vrátiť.") },
+        text = { Text("Natrvalo sa zmažú všetky bločky, položky, rozpočty, pravidlá kategórií, prevádzky a profil v tomto telefóne. Ak ste v spoločnej domácnosti, odídete z nej (údaje ostatných členov ostanú). Nedá sa to vrátiť.") },
         confirmButton = {
             TextButton(onClick = { confirm = false; vm.deleteEverything(onDeleted) }) { Text("Zmazať", color = Pal.Red, fontWeight = FontWeight.Bold) }
         },

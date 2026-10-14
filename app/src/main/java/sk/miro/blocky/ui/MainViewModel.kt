@@ -8,6 +8,10 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import sk.miro.blocky.data.*
 import sk.miro.blocky.domain.*
+import sk.miro.blocky.sync.HouseholdSync
+import sk.miro.blocky.sync.Invite
+import sk.miro.blocky.sync.Member
+import sk.miro.blocky.sync.SyncStatus
 import java.io.File
 import java.time.YearMonth
 
@@ -100,6 +104,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val now = System.currentTimeMillis()
         if (raw == lastRaw && now - lastRawAt < 4_000) { lastRawAt = now; return }
         lastRaw = raw; lastRawAt = now
+        if (Invite.isInvite(raw)) {
+            val inv = Invite.decode(raw)
+            _vibe.tryEmit(if (inv != null) BannerKind.OK else BannerKind.ERROR)
+            if (inv == null) _immediate.value = ScanBanner(++scanSeq, BannerKind.ERROR, "Neplatná pozvánka", "QR kód je poškodený.", null)
+            else if (repo.sync.enabled) _immediate.value = ScanBanner(++scanSeq, BannerKind.INFO, "Už ste v domácnosti",
+                "Najprv z nej odíďte v Nastaveniach, potom sa môžete pridať do inej.", null)
+            else _pendingInvite.value = inv
+            return
+        }
         val id = ++scanSeq
         viewModelScope.launch {
             when (val r = repo.enqueue(raw)) {
@@ -145,7 +158,50 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---------- Profil domácnosti ----------
-    fun setProfile(p: HouseholdProfile) { repo.profile = p; _profile.value = p }
+    fun setProfile(p: HouseholdProfile) { _profile.value = p; viewModelScope.launch { repo.saveProfile(p) } }
+
+    // ---------- Spoločná domácnosť ----------
+    val syncStatus: StateFlow<SyncStatus> = HouseholdSync.status
+    val syncConfigured: Boolean get() = HouseholdSync.builtInConfigured
+    private val _members = MutableStateFlow<List<Member>>(emptyList())
+    val members: StateFlow<List<Member>> = _members
+    private val _syncMsg = MutableStateFlow<String?>(null)
+    /** hlásenie o výsledku akcie (založenie, pripojenie, chyba) */
+    val syncMsg: StateFlow<String?> = _syncMsg
+    private val _busy = MutableStateFlow(false)
+    val syncBusy: StateFlow<Boolean> = _busy
+
+    /** Pozvánka naskenovaná skenerom – čaká na zadanie mena. */
+    private val _pendingInvite = MutableStateFlow<Invite?>(null)
+    val pendingInvite: StateFlow<Invite?> = _pendingInvite
+    fun dismissInvite() { _pendingInvite.value = null }
+    fun clearSyncMsg() { _syncMsg.value = null }
+
+    fun invite(): Invite? = repo.sync.invite()
+
+    private fun syncAction(okMsg: String?, block: suspend () -> Unit) = viewModelScope.launch {
+        _busy.value = true
+        _syncMsg.value = try { block(); okMsg } catch (e: Exception) { e.message ?: e.javaClass.simpleName }
+        _busy.value = false
+        refreshMembers()
+        _profile.value = repo.profile
+    }
+
+    fun createHousehold(name: String) = syncAction("Domácnosť je založená. Pozvite ďalších členov QR kódom.") { repo.sync.create(name.trim()) }
+    fun joinHousehold(inv: Invite, name: String) = syncAction("Ste v domácnosti. Bločky sa zosynchronizovali.") {
+        _pendingInvite.value = null
+        repo.sync.join(inv, name.trim())
+    }
+    fun leaveHousehold() = syncAction("Odišli ste z domácnosti. Bločky ostali v tomto telefóne.") { repo.sync.leave() }
+    fun deleteHouseholdData() = syncAction("Údaje domácnosti boli zo servera zmazané. V telefóne ostali.") { repo.sync.deleteServerData() }
+    fun syncNow() = syncAction(null) {
+        if (!repo.sync.syncNow()) throw Exception(HouseholdSync.status.value.error ?: "Synchronizácia zlyhala")
+    }
+    fun syncSoon() = repo.sync.schedule()
+
+    fun refreshMembers() = viewModelScope.launch {
+        _members.value = try { repo.sync.members() } catch (e: Exception) { _members.value }
+    }
 
     // ---------- Súkromie ----------
     private val _autoUpdate = MutableStateFlow(repo.autoUpdate)
@@ -194,6 +250,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         viewModelScope.launch(Dispatchers.IO) { repo.migrateIfNeeded() }
+        // po synchronizácii načítať profil domácnosti (mohol ho zmeniť iný člen)
+        viewModelScope.launch { HouseholdSync.status.collect { if (!it.running) _profile.value = repo.profile } }
+        repo.sync.schedule()
         if (updater.enabled && repo.autoUpdate) checkUpdate(silent = true)
     }
 

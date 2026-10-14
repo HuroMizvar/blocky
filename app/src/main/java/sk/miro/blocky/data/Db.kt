@@ -24,7 +24,30 @@ data class ReceiptEntity(
     /** kľúč prevádzky (IČO alebo názov) – pozri MerchantResolver.key */
     val merchantKey: String? = null,
     /** MerchantType.name */
-    val merchantType: String? = null
+    val merchantType: String? = null,
+    /** ID dokumentu na serveri domácnosti (null = ešte nesynchronizovaný) */
+    val syncId: String? = null,
+    /** meno člena domácnosti, ktorý bloček nahral */
+    val addedBy: String? = null,
+    val addedByUid: String? = null,
+    /** treba odoslať na server (nový alebo upravený bloček) */
+    @ColumnInfo(defaultValue = "0") val dirty: Boolean = false,
+    /** čas poslednej úpravy (ms) – pri konflikte vyhráva novšia */
+    @ColumnInfo(defaultValue = "0") val editedAt: Long = 0
+)
+
+/** Zmazaný bloček, ktorého zmazanie treba ešte poslať na server. */
+@Entity(tableName = "sync_tombstones")
+data class SyncTombstoneEntity(@PrimaryKey val docId: String)
+
+/** Zmenené nastavenie (pravidlo, typ prevádzky, rozpočet, profil) čakajúce na odoslanie. */
+@Entity(tableName = "sync_outbox")
+data class SyncOutboxEntity(
+    @PrimaryKey val kindKey: String,
+    val kind: String,
+    val k: String,
+    val value: String?,
+    val at: Long
 )
 
 /**
@@ -196,7 +219,7 @@ abstract class BlockyDao {
 
     @Transaction
     open suspend fun clearAll() {
-        clearReceipts(); clearBudgets(); clearRules(); clearPending(); clearMerchants()
+        clearReceipts(); clearBudgets(); clearRules(); clearPending(); clearMerchants(); clearTombstones(); clearOutbox()
     }
 
     @Query("SELECT * FROM receipts ORDER BY issuedAt DESC")
@@ -295,12 +318,75 @@ abstract class BlockyDao {
 
     @Query("DELETE FROM budgets WHERE category = :category")
     abstract suspend fun deleteBudget(category: String)
+
+    @Query("SELECT * FROM budgets")
+    abstract suspend fun budgetList(): List<BudgetEntity>
+
+    @Query("DELETE FROM category_rules WHERE normName = :normName")
+    abstract suspend fun deleteRule(normName: String)
+
+    @Query("SELECT * FROM merchants WHERE userSet = 1")
+    abstract suspend fun userMerchants(): List<MerchantEntity>
+
+    // ---- synchronizácia domácnosti ----
+    @Query("UPDATE receipts SET dirty = 1, editedAt = :at WHERE id = :id")
+    abstract suspend fun markDirty(id: Long, at: Long)
+
+    @Query("UPDATE receipts SET dirty = 1, editedAt = :at WHERE id = (SELECT receiptDbId FROM items WHERE id = :itemId)")
+    abstract suspend fun markDirtyByItem(itemId: Long, at: Long)
+
+    @Query("UPDATE receipts SET dirty = 1, editedAt = :at WHERE id IN (SELECT receiptDbId FROM items WHERE normName = :normName)")
+    abstract suspend fun markDirtyByName(normName: String, at: Long)
+
+    @Query("UPDATE receipts SET dirty = 1, editedAt = :at WHERE merchantKey = :key")
+    abstract suspend fun markDirtyByMerchant(key: String, at: Long)
+
+    /** Pri zapnutí synchronizácie: všetky vlastné bločky (okrem demo) poslať na server. */
+    @Query("UPDATE receipts SET dirty = 1, addedBy = COALESCE(addedBy, :name), addedByUid = COALESCE(addedByUid, :uid) WHERE source != 'DEMO'")
+    abstract suspend fun markAllDirty(name: String, uid: String)
+
+    @Transaction
+    @Query("SELECT * FROM receipts WHERE dirty = 1 AND source != 'DEMO'")
+    abstract suspend fun dirtyReceipts(): List<ReceiptWithItems>
+
+    @Query("UPDATE receipts SET dirty = 0, syncId = :syncId, addedBy = :by, addedByUid = :uid WHERE id = :id AND editedAt = :editedAt")
+    abstract suspend fun markClean(id: Long, syncId: String, by: String?, uid: String?, editedAt: Long)
+
+    @Query("SELECT * FROM receipts WHERE syncId = :syncId LIMIT 1")
+    abstract suspend fun receiptBySyncId(syncId: String): ReceiptEntity?
+
+    @Query("DELETE FROM items WHERE receiptDbId = :receiptDbId")
+    abstract suspend fun deleteItemsOf(receiptDbId: Long)
+
+    @Update
+    abstract suspend fun updateReceipt(r: ReceiptEntity)
+
+    /** Nahradí bloček verziou zo servera (ponechá lokálne ID). */
+    @Transaction
+    open suspend fun replaceReceipt(r: ReceiptEntity, items: List<ItemEntity>) {
+        updateReceipt(r)
+        deleteItemsOf(r.id)
+        insertItems(items.map { it.copy(id = 0, receiptDbId = r.id) })
+    }
+
+    @Query("UPDATE receipts SET syncId = NULL, dirty = 0")
+    abstract suspend fun clearSyncIds()
+
+    @Upsert abstract suspend fun addTombstone(t: SyncTombstoneEntity)
+    @Query("SELECT * FROM sync_tombstones") abstract suspend fun tombstones(): List<SyncTombstoneEntity>
+    @Query("DELETE FROM sync_tombstones WHERE docId = :docId") abstract suspend fun removeTombstone(docId: String)
+    @Query("DELETE FROM sync_tombstones") abstract suspend fun clearTombstones()
+
+    @Upsert abstract suspend fun addOutbox(o: SyncOutboxEntity)
+    @Query("SELECT * FROM sync_outbox") abstract suspend fun outbox(): List<SyncOutboxEntity>
+    @Query("DELETE FROM sync_outbox WHERE kindKey = :kindKey AND at = :at") abstract suspend fun removeOutbox(kindKey: String, at: Long)
+    @Query("DELETE FROM sync_outbox") abstract suspend fun clearOutbox()
 }
 
 @Database(
     entities = [ReceiptEntity::class, ItemEntity::class, BudgetEntity::class, CategoryRuleEntity::class,
-        PendingScanEntity::class, MerchantEntity::class],
-    version = 5,
+        PendingScanEntity::class, MerchantEntity::class, SyncTombstoneEntity::class, SyncOutboxEntity::class],
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -347,10 +433,24 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v6: synchronizácia domácnosti */
+        val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `receipts` ADD COLUMN `syncId` TEXT")
+                db.execSQL("ALTER TABLE `receipts` ADD COLUMN `addedBy` TEXT")
+                db.execSQL("ALTER TABLE `receipts` ADD COLUMN `addedByUid` TEXT")
+                db.execSQL("ALTER TABLE `receipts` ADD COLUMN `dirty` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `receipts` ADD COLUMN `editedAt` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `sync_tombstones` (`docId` TEXT NOT NULL, PRIMARY KEY(`docId`))")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `sync_outbox` (`kindKey` TEXT NOT NULL, `kind` TEXT NOT NULL, " +
+                    "`k` TEXT NOT NULL, `value` TEXT, `at` INTEGER NOT NULL, PRIMARY KEY(`kindKey`))")
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "blocky.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build().also { instance = it }
         }
     }

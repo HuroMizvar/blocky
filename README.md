@@ -131,3 +131,19 @@ app/src/test/…            unit testy logiky (bežia aj v CI)
 ## Kategória Auto a moto
 - Autoservisy, pneuservisy, STK, autodiely a umyvárne sa celé zaradia do „Auto a moto“.
 - Autopotreby (motorový olej, ostrekovače, diaľničná známka…) sa rozpoznajú v ktoromkoľvek obchode.
+
+## Spoločná domácnosť (voliteľné)
+- Až 10 členov (telefóny, tablet) nahráva bločky do spoločných výdavkov; pri bločku vidno, kto ho nahral.
+- Duplicita: rovnaký bloček má u všetkých členov rovnaké (zašifrované) ID → upozornenie „Tento bloček už nahral(a) …“.
+- Šifrovanie AES-256-GCM v telefóne; server (Firebase Firestore, EÚ) dostane len zašifrovaný text. Kľúč je len v pozývacom QR kóde.
+- Bez Google účtu – každé zariadenie má anonymný prístup Firebase. Bez Firebase SDK (len REST), bez analytiky.
+- Synchronizuje sa: bločky s položkami a úpravami, zmazania, pravidlá kategórií, typy prevádzok, rozpočty, profil domácnosti.
+
+### Nastavenie servera (raz, ~15 minút)
+1. https://console.firebase.google.com → **Vytvoriť projekt** (napr. `blocky-domacnost`), Google Analytics **vypnúť**.
+2. **Authentication** → Začať → Sign-in method → **Anonymous** → Zapnúť → Uložiť.
+3. **Firestore Database** → Vytvoriť databázu → umiestnenie **eur3 (Europe)** → production mode.
+4. Firestore → **Rules** → vložiť obsah súboru `firestore.rules` → Publish.
+5. Nastavenia projektu (ozubené koliesko) → Vaše aplikácie → **Android** → balík `sk.miro.blocky`,
+   SHA-1 `B0:13:28:72:53:79:E5:7B:6F:F2:3C:4D:D0:1E:A4:B5:03:43:33:B3` → Registrovať → stiahnuť **google-services.json**.
+6. Súbor `google-services.json` nahrať do koreňa repozitára na GitHube (Add file → Upload files).

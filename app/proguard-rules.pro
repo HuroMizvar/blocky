@@ -11,3 +11,4 @@
 
 # Čitateľnejšie stack trace v prípade chyby
 -keepattributes SourceFile,LineNumberTable
+-keep class sk.miro.blocky.sync.SyncWorker { <init>(...); }

@@ -1,0 +1,31 @@
+rules_version = '2';
+// Pravidlá pre aplikáciu Bločky – spoločná domácnosť.
+// Skopírujte celý tento text do Firebase → Firestore Database → Rules → Publish.
+// Na server ide len zašifrovaný text; pravidlá navyše zabezpečia, že údaje domácnosti
+// môže čítať a meniť len jej člen.
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function isMember(h) {
+      return signedIn() && exists(/databases/$(db)/documents/households/$(h)/members/$(request.auth.uid));
+    }
+
+    match /households/{h} {
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['joinSecret', 'v', 'updatedAt']);
+      allow read, update, delete: if isMember(h);
+
+      match /members/{uid} {
+        // pridať sa môže len ten, kto pozná tajomstvo z pozývacieho QR kódu
+        allow create: if signedIn() && request.auth.uid == uid
+          && request.resource.data.joinSecret == get(/databases/$(db)/documents/households/$(h)).data.joinSecret;
+        allow update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.joinSecret == get(/databases/$(db)/documents/households/$(h)).data.joinSecret;
+        allow read: if isMember(h);
+        allow delete: if signedIn() && (request.auth.uid == uid || isMember(h));
+      }
+
+      match /receipts/{r} { allow read, write: if isMember(h); }
+      match /kv/{k} { allow read, write: if isMember(h); }
+    }
+  }
+}

@@ -194,6 +194,13 @@ private fun ReceiptRow(row: ReceiptListRow, onClick: () -> Unit) {
             Text(fmtDay(r.issuedAt) + (if (row.itemCount > 0) " · ${row.itemCount} ${itemWord(row.itemCount)}" else "") +
                     when (r.source) { "MANUAL" -> " · ručne"; "DEMO" -> " · demo"; else -> "" },
                 fontSize = 12.sp, color = Pal.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            r.addedBy?.let { who ->
+                Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    MemberDot(who, 14)
+                    Spacer(Modifier.width(4.dp))
+                    Text(who, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = memberColor(who))
+                }
+            }
             if (edited) EditedChip(Modifier.padding(top = 4.dp))
         }
         Spacer(Modifier.width(8.dp))
@@ -251,6 +258,13 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
                     }
                     Text(shortMerchant(d.receipt.merchantName), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                     Text(fmtDate(d.receipt.issuedAt), fontSize = 13.sp, color = Pal.Muted)
+                    d.receipt.addedBy?.let { who ->
+                        Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            MemberDot(who, 18)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Nahral(a): $who", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = memberColor(who))
+                        }
+                    }
                     d.receipt.storeAddress?.let { Text(it, fontSize = 13.sp, color = Pal.Muted) }
                     Spacer(Modifier.height(10.dp))
                     val counted = d.items.filter { !it.excluded }.sumOf { it.priceCents }

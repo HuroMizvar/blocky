@@ -16,6 +16,23 @@ android {
     // Len pre súkromný repozitár: read-only token zo secretu UPDATE_TOKEN
     val ghToken = System.getenv("UPDATE_TOKEN") ?: ""
 
+    // Spoločná domácnosť (voliteľné): údaje servera Firebase zo súboru google-services.json,
+    // ktorý stačí nahrať do repozitára (koreň alebo priečinok app). Bez neho aplikácia funguje, len bez domácnosti.
+    // Používa sa len projectId a API kľúč – Firebase SDK ani plugin google-services sa nepoužívajú.
+    val gsFile = listOf(rootProject.file("google-services.json"), file("google-services.json")).firstOrNull { it.exists() }
+    var fbProject = ""
+    var fbKey = ""
+    if (gsFile != null) {
+        @Suppress("UNCHECKED_CAST")
+        val gs = groovy.json.JsonSlurper().parse(gsFile) as Map<String, Any?>
+        fbProject = ((gs["project_info"] as? Map<String, Any?>)?.get("project_id") as? String) ?: ""
+        val clients = (gs["client"] as? List<Map<String, Any?>>) ?: emptyList()
+        val client = clients.firstOrNull {
+            ((it["client_info"] as? Map<String, Any?>)?.get("android_client_info") as? Map<String, Any?>)?.get("package_name") == "sk.miro.blocky"
+        } ?: clients.firstOrNull()
+        fbKey = ((client?.get("api_key") as? List<Map<String, Any?>>)?.firstOrNull()?.get("current_key") as? String) ?: ""
+    }
+
     defaultConfig {
         applicationId = "sk.miro.blocky"
         minSdk = 26
@@ -24,6 +41,8 @@ android {
         versionName = "1.0.$buildNumber"
         buildConfigField("String", "GH_REPO", "\"$ghRepo\"")
         buildConfigField("String", "GH_TOKEN", "\"$ghToken\"")
+        buildConfigField("String", "FB_PROJECT_ID", "\"$fbProject\"")
+        buildConfigField("String", "FB_API_KEY", "\"$fbKey\"")
         // len ARM telefóny (x86 je pre emulátory) – menšie APK
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }

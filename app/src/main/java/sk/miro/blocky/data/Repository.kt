@@ -11,6 +11,8 @@ import sk.miro.blocky.domain.HouseholdProfile
 import sk.miro.blocky.domain.ItemEdit
 import sk.miro.blocky.domain.MerchantResolver
 import sk.miro.blocky.domain.MerchantType
+import sk.miro.blocky.sync.HouseholdSync
+import org.json.JSONObject
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -34,10 +36,11 @@ sealed interface EnqueueResult {
 private val DUP_FMT = DateTimeFormatter.ofPattern("d. M. yyyy 'o' HH:mm")
 
 fun duplicateText(r: ReceiptEntity): String =
+    (r.addedBy?.let { "Nahral(a) $it · " } ?: "") +
     "Nákup z ${Instant.ofEpochMilli(r.issuedAt).atZone(ZoneId.systemDefault()).format(DUP_FMT)} · " +
         "${r.merchantName} · ${Analytics.eur(r.totalCents)}"
 
-class Repository(private val context: Context) {
+class Repository(private val context: Context) : HouseholdSync.Hooks {
     companion object {
         const val MOCK_PREFIX = "MOCK#"
         /** pri exponenciálnom odstupe WorkManagera ≈ niekoľko dní pokusov */
@@ -48,6 +51,31 @@ class Repository(private val context: Context) {
 
     private val dao = AppDatabase.get(context).dao()
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+
+    /** Spoločná domácnosť (voliteľné). */
+    val sync = HouseholdSync(context, dao, this)
+
+    /** Zaznamená úpravu bločku na odoslanie ostatným členom. */
+    private suspend fun touchItem(itemId: Long) {
+        if (sync.enabled) { dao.markDirtyByItem(itemId, System.currentTimeMillis()); sync.schedule() }
+    }
+
+    override fun profileJson(): String = profile.let { p ->
+        JSONObject().put("people", p.people).put("kids", p.kids).put("carer", p.carer).put("pets", p.pets)
+            .put("car", p.car).put("note", p.note).toString()
+    }
+
+    override fun applyProfileJson(json: String) {
+        val o = JSONObject(json)
+        profile = HouseholdProfile(o.optInt("people"), o.optInt("kids"), o.optBoolean("carer"), o.optBoolean("pets"),
+            o.optBoolean("car"), o.optString("note"))
+    }
+
+    /** Uloží profil a pošle ho ostatným členom domácnosti. */
+    suspend fun saveProfile(p: HouseholdProfile) {
+        profile = p
+        if (sync.enabled) { sync.queue("profile", "household", profileJson()); sync.schedule() }
+    }
 
     var endpoint: String
         get() = prefs.getString("endpoint", EkasaClient.DEFAULT_ENDPOINT) ?: EkasaClient.DEFAULT_ENDPOINT
@@ -78,7 +106,7 @@ class Repository(private val context: Context) {
     fun observeReceipt(id: Long) = dao.observeReceipt(id)
     val receipts = dao.receipts()
     val receiptList = dao.receiptList()
-    suspend fun setExcluded(itemId: Long, excluded: Boolean) = dao.setExcluded(itemId, excluded)
+    suspend fun setExcluded(itemId: Long, excluded: Boolean) { dao.setExcluded(itemId, excluded); touchItem(itemId) }
 
     /** Zmení množstvo položky (napr. na bločku 2 kávy, platil som 1). Cena a zľava sa prepočítajú pomerne. */
     suspend fun setQuantity(itemId: Long, qty: Double) {
@@ -86,13 +114,14 @@ class Repository(private val context: Context) {
         val q = ItemEdit.quantity(item.quantity, item.priceCents, item.discountCents,
             item.origQuantity, item.origPriceCents, item.origDiscountCents, qty)
         dao.setItemQuantity(itemId, q.quantity, q.priceCents, q.discountCents, q.origQuantity, q.origPriceCents, q.origDiscountCents)
+        touchItem(itemId)
     }
 
     /** Vráti položku do pôvodného stavu z bločku (množstvo, cena, započítanie). */
     suspend fun restoreItem(itemId: Long) {
         val item = dao.itemById(itemId) ?: return
         item.origQuantity?.let { setQuantity(itemId, it) }
-        if (item.excluded) dao.setExcluded(itemId, false)
+        if (item.excluded) { dao.setExcluded(itemId, false); touchItem(itemId) }
     }
     val itemRows = dao.allItemRows()
     val budgets = dao.budgets()
@@ -102,7 +131,10 @@ class Repository(private val context: Context) {
         if (mockMode) return save(DemoData.mockReceipt(rawQr), DemoData.SOURCE)
         val qr = EkasaQr.parse(rawQr)
             ?: return ScanResult.Error("QR kód nie je bloček eKasa.\nObsah: ${rawQr.take(80)}")
-        if (qr is EkasaQr.Online) dao.receiptByReceiptId(qr.receiptId)?.let { return ScanResult.Duplicate(qr.receiptId, it) }
+        if (qr is EkasaQr.Online) {
+            dao.receiptByReceiptId(qr.receiptId)?.let { return ScanResult.Duplicate(qr.receiptId, it) }
+            sync.remoteDuplicate(qr.receiptId)?.let { return ScanResult.Duplicate(qr.receiptId, it) }
+        }
         val parsed = try {
             EkasaClient(endpoint).fetch(qr)
         } catch (e: EkasaException) {
@@ -111,6 +143,7 @@ class Repository(private val context: Context) {
             return ScanResult.Error("Bez pripojenia – načíta sa automaticky neskôr.", retryable = true)
         }
         dao.receiptByReceiptId(parsed.receiptId)?.let { return ScanResult.Duplicate(parsed.receiptId, it) }
+        sync.remoteDuplicate(parsed.receiptId)?.let { return ScanResult.Duplicate(parsed.receiptId, it) }
         return save(parsed, "EKASA")
     }
 
@@ -199,7 +232,12 @@ class Repository(private val context: Context) {
             receiptId = p.receiptId, merchantName = p.merchantName, merchantIco = p.merchantIco,
             storeAddress = p.storeAddress, issuedAt = p.issuedAt, totalCents = p.totalCents,
             rawJson = p.rawJson.ifBlank { null }, source = source,
-            merchantKey = if (source == "MANUAL") null else mKey, merchantType = mType.name
+            merchantKey = if (source == "MANUAL") null else mKey, merchantType = mType.name,
+            // v domácnosti: kto bloček nahral + odoslať ostatným (demo bločky sa neposielajú)
+            addedBy = if (sync.enabled) sync.memberName else null,
+            addedByUid = if (sync.enabled) sync.myUid else null,
+            dirty = sync.enabled && source != DemoData.SOURCE,
+            editedAt = System.currentTimeMillis()
         )
         // Zľavy (záporné riadky) sa pripočítajú k produktu, ku ktorému patria.
         val folded = if (forced != null) p.items.map { DiscountFolder.Folded(it.priceCents, 0) }
@@ -219,6 +257,7 @@ class Repository(private val context: Context) {
         } catch (e: android.database.sqlite.SQLiteConstraintException) {
             return ScanResult.Duplicate(p.receiptId, dao.receiptByReceiptId(p.receiptId)) // súbežné uloženie
         }
+        if (sync.enabled && source != DemoData.SOURCE) sync.schedule()
         return ScanResult.Saved(id, p.merchantName, p.totalCents, items.size)
     }
 
@@ -227,10 +266,19 @@ class Repository(private val context: Context) {
         if (applyToAll) {
             dao.upsertRule(CategoryRuleEntity(normName, category.name))
             dao.setCategoryForName(normName, category.name)
-        } else dao.setItemCategory(itemId, category.name)
+            if (sync.enabled) {
+                dao.markDirtyByName(normName, System.currentTimeMillis())
+                sync.queue("rule", normName, category.name)
+                sync.schedule()
+            }
+        } else { dao.setItemCategory(itemId, category.name); touchItem(itemId) }
     }
 
-    suspend fun deleteReceipt(id: Long) = dao.deleteReceipt(id)
+    suspend fun deleteReceipt(id: Long) {
+        val r = dao.receiptById(id)
+        dao.deleteReceipt(id)
+        if (sync.enabled && r?.syncId != null) { dao.addTombstone(SyncTombstoneEntity(r.syncId)); sync.schedule() }
+    }
 
     /** Nahradí demo bločky novou sadou (3 mesiace + aktuálny). Vráti počet bločkov. */
     suspend fun seedDemo(): Int {
@@ -248,6 +296,11 @@ class Repository(private val context: Context) {
     suspend fun setMerchantType(key: String, name: String, type: MerchantType) {
         dao.upsertMerchant(MerchantEntity(key, name, type.name, true))
         recategorizeReceipts(dao.receiptsWithItemsByMerchant(key))
+        if (sync.enabled) {
+            dao.markDirtyByMerchant(key, System.currentTimeMillis())
+            sync.queue("merchant", key, JSONObject().put("name", name).put("type", type.name).toString())
+            sync.schedule()
+        }
     }
 
     private suspend fun recategorizeReceipts(list: List<ReceiptWithItems>) {
@@ -297,6 +350,7 @@ class Repository(private val context: Context) {
 
     /** Právo na výmaz: zmaže všetky bločky, rozpočty, pravidlá, prevádzky, profil a exporty. */
     suspend fun deleteEverything() = withContext(Dispatchers.IO) {
+        sync.leave()   // odíde z domácnosti; údaje ostatných členov na serveri ostanú
         dao.clearAll()
         val keepVersion = prefs.getInt("catVersion", 0)
         prefs.edit().clear().putInt("catVersion", keepVersion).apply()
@@ -304,8 +358,10 @@ class Repository(private val context: Context) {
         File(context.cacheDir, "updates").deleteRecursively()
     }
 
-    suspend fun setBudget(c: Category, cents: Long?) =
+    suspend fun setBudget(c: Category, cents: Long?) {
         if (cents == null || cents <= 0) dao.deleteBudget(c.name) else dao.upsertBudget(BudgetEntity(c.name, cents))
+        if (sync.enabled) { sync.queue("budget", c.name, cents?.takeIf { it > 0 }?.toString()); sync.schedule() }
+    }
 
     /** Export všetkých položiek do CSV (UTF-8 s BOM, oddeľovač ";" – otvorí sa priamo v Exceli). */
     suspend fun exportCsv(rows: List<ItemRow>): File = withContext(Dispatchers.IO) {
