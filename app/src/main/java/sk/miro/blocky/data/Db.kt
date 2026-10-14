@@ -349,8 +349,8 @@ abstract class BlockyDao {
     @Query("SELECT * FROM receipts WHERE dirty = 1 AND source != 'DEMO'")
     abstract suspend fun dirtyReceipts(): List<ReceiptWithItems>
 
-    @Query("UPDATE receipts SET dirty = 0, syncId = :syncId, addedBy = :by, addedByUid = :uid WHERE id = :id AND editedAt = :editedAt")
-    abstract suspend fun markClean(id: Long, syncId: String, by: String?, uid: String?, editedAt: Long)
+    @Query("UPDATE receipts SET dirty = 0, syncId = :syncId, addedBy = :who, addedByUid = :uid WHERE id = :id AND editedAt = :editedAt")
+    abstract suspend fun markClean(id: Long, syncId: String, who: String?, uid: String?, editedAt: Long)
 
     @Query("SELECT * FROM receipts WHERE syncId = :syncId LIMIT 1")
     abstract suspend fun receiptBySyncId(syncId: String): ReceiptEntity?

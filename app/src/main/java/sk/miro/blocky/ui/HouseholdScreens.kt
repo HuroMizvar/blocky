@@ -150,7 +150,7 @@ fun HouseholdDialogs(vm: MainViewModel) {
                 "Zadajte meno, ktoré uvidia pri vašich bločkoch.",
             "Pridať sa", onDismiss = vm::dismissInvite) { vm.joinHousehold(i, it) }
     }
-    if (busy && inv == null) Dialog {
+    if (busy && inv == null) BusyDialog {
         Row(Modifier.clip(RoundedCornerShape(20.dp)).background(Pal.Card).padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp)
             Spacer(Modifier.width(16.dp))

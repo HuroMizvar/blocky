@@ -274,17 +274,17 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
                     val existing = r.get("$home/receipts/$docId")
                     if (existing != null && !FirestoreRest.fieldBool(existing, "deleted")) { applyReceipt(existing); continue }
                 }
-                val by = rec.addedBy ?: memberName
-                val byUid = rec.addedByUid ?: uid
-                val json = SyncPayload.toJson(rec.copy(addedBy = by, addedByUid = byUid), rw.items)
+                val who = rec.addedBy ?: memberName
+                val whoUid = rec.addedByUid ?: uid
+                val json = SyncPayload.toJson(rec.copy(addedBy = who, addedByUid = whoUid), rw.items)
                 writes += r.writeDoc("$home/receipts/$docId", JSONObject()
                     .put("enc", FirestoreRest.str(SyncCrypto.encrypt(k, json)))
                     .put("by", FirestoreRest.str(uid))
                     .put("deleted", FirestoreRest.bool(false)))
-                done += Triple(rec, docId, by)
+                done += Triple(rec, docId, who)
             }
             if (writes.isNotEmpty()) r.commit(writes)
-            done.forEach { (rec, docId, by) -> dao.markClean(rec.id, docId, by, rec.addedByUid ?: uid, rec.editedAt) }
+            done.forEach { (rec, docId, who) -> dao.markClean(rec.id, docId, who, rec.addedByUid ?: uid, rec.editedAt) }
         }
 
         // 3) nastavenia
@@ -305,14 +305,15 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
 
     private suspend fun pull(r: FirestoreRest, coll: String, pref: String, apply: suspend (JSONObject) -> Unit) {
         val since = prefs.getString(pref, null)
-        var max = since?.let { runCatching { Instant.parse(it) }.getOrNull() }
+        var max: Instant? = if (since == null) null else runCatching { Instant.parse(since) }.getOrNull()
         for (doc in r.changedSince(home, coll, since)) {
             try { apply(doc) } catch (e: Exception) { /* poškodený záznam preskočíme */ }
-            FirestoreRest.fieldTime(doc, "updatedAt")?.let { runCatching { Instant.parse(it) }.getOrNull() }?.let {
-                if (max == null || it.isAfter(max)) max = it
-            }
+            val t: Instant? = FirestoreRest.fieldTime(doc, "updatedAt")?.let { runCatching { Instant.parse(it) }.getOrNull() }
+            val cur = max
+            if (t != null && (cur == null || t.isAfter(cur))) max = t
         }
-        max?.let { prefs.edit().putString(pref, it.toString()).apply() }
+        val last = max
+        if (last != null) prefs.edit().putString(pref, last.toString()).apply()
     }
 
     private suspend fun applyReceipt(doc: JSONObject) {
