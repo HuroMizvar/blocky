@@ -36,6 +36,10 @@ data class ReceiptEntity(
     @ColumnInfo(defaultValue = "0") val editedAt: Long = 0
 )
 
+/** Opravená položka – príklad, z ktorého sa vstavaná AI učí (normalizovaný názov → kategória). */
+@Entity(tableName = "ai_examples")
+data class AiExampleEntity(@PrimaryKey val normName: String, val category: String)
+
 /** Zmazaný bloček, ktorého zmazanie treba ešte poslať na server. */
 @Entity(tableName = "sync_tombstones")
 data class SyncTombstoneEntity(@PrimaryKey val docId: String)
@@ -93,8 +97,12 @@ data class ItemEntity(
     /** pôvodné hodnoty z bločku, ak používateľ zmenil množstvo (null = nezmenené) */
     val origQuantity: Double? = null,
     val origPriceCents: Long? = null,
-    val origDiscountCents: Long? = null
+    val origDiscountCents: Long? = null,
+    /** kto určil kategóriu: null = pravidlá, "ai" = vstavaná AI, "nano" = AI telefónu, "nano-none" = AI telefónu nevedela */
+    val catSource: String? = null
 ) {
+    /** kategóriu navrhla umelá inteligencia (a používateľ ju zatiaľ neopravil) */
+    val byAi: Boolean get() = !categoryManual && (catSource == "ai" || catSource == "nano")
     /** položka bola ručne upravená (prečiarknutá alebo zmenené množstvo) */
     val edited: Boolean get() = excluded || origQuantity != null
 }
@@ -195,8 +203,8 @@ abstract class BlockyDao {
     @Query("UPDATE receipts SET merchantKey = :key, merchantType = :type WHERE id = :id")
     abstract suspend fun setReceiptMerchant(id: Long, key: String?, type: String?)
 
-    @Query("UPDATE items SET category = :category WHERE id = :id")
-    abstract suspend fun setItemCategoryAuto(id: Long, category: String)
+    @Query("UPDATE items SET category = :category, catSource = :source WHERE id = :id")
+    abstract suspend fun setItemCategoryAuto(id: Long, category: String, source: String?)
 
     // ---- prevádzky ----
     @Query("SELECT * FROM merchants WHERE mkey = :key")
@@ -219,7 +227,7 @@ abstract class BlockyDao {
 
     @Transaction
     open suspend fun clearAll() {
-        clearReceipts(); clearBudgets(); clearRules(); clearPending(); clearMerchants(); clearTombstones(); clearOutbox()
+        clearReceipts(); clearBudgets(); clearRules(); clearPending(); clearMerchants(); clearTombstones(); clearOutbox(); clearAiExamples()
     }
 
     @Query("SELECT * FROM receipts ORDER BY issuedAt DESC")
@@ -298,11 +306,21 @@ abstract class BlockyDao {
     )
     abstract fun allItemRows(): Flow<List<ItemRow>>
 
-    @Query("UPDATE items SET category = :category, categoryManual = 1 WHERE id = :itemId")
+    @Query("UPDATE items SET category = :category, categoryManual = 1, catSource = NULL WHERE id = :itemId")
     abstract suspend fun setItemCategory(itemId: Long, category: String)
 
-    @Query("UPDATE items SET category = :category, categoryManual = 1 WHERE normName = :normName")
+    @Query("UPDATE items SET category = :category, categoryManual = 1, catSource = NULL WHERE normName = :normName")
     abstract suspend fun setCategoryForName(normName: String, category: String)
+
+    // ---- vstavaná AI ----
+    @Upsert abstract suspend fun upsertAiExample(e: AiExampleEntity)
+    @Query("SELECT * FROM ai_examples") abstract suspend fun aiExamples(): List<AiExampleEntity>
+    @Query("DELETE FROM ai_examples") abstract suspend fun clearAiExamples()
+
+    /** Položky pre AI telefónu: nezaradené alebo zaradené vstavanou AI, bez ručnej opravy. */
+    @Query("""SELECT * FROM items WHERE categoryManual = 0 AND priceCents > 0
+              AND (catSource = 'ai' OR (category = 'INE' AND catSource IS NULL)) LIMIT :limit""")
+    abstract suspend fun itemsForPhoneAi(limit: Int): List<ItemEntity>
 
     @Upsert
     abstract suspend fun upsertRule(rule: CategoryRuleEntity)
@@ -385,8 +403,8 @@ abstract class BlockyDao {
 
 @Database(
     entities = [ReceiptEntity::class, ItemEntity::class, BudgetEntity::class, CategoryRuleEntity::class,
-        PendingScanEntity::class, MerchantEntity::class, SyncTombstoneEntity::class, SyncOutboxEntity::class],
-    version = 6,
+        PendingScanEntity::class, MerchantEntity::class, SyncTombstoneEntity::class, SyncOutboxEntity::class, AiExampleEntity::class],
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -447,10 +465,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v7: vstavaná AI – zdroj kategórie a príklady z opráv */
+        val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `items` ADD COLUMN `catSource` TEXT")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `ai_examples` (`normName` TEXT NOT NULL, `category` TEXT NOT NULL, PRIMARY KEY(`normName`))")
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "blocky.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .build().also { instance = it }
         }
     }

@@ -127,21 +127,51 @@ object Categorizer {
      * 5) kľúčové slová v názve položky,
      * 6) náhradná kategória podľa typu prevádzky (napr. lekáreň → Zdravie).
      */
+    /** Výsledok zaradenia: [byAi] = kategóriu určila vstavaná AI. */
+    data class Result(val category: Category, val byAi: Boolean = false)
+
+    /** Kategórie, ktoré AI nesmie navrhnúť v obchode s tovarom (napr. „espresso“ v Lidli je káva, nie kaviareň). */
+    private val notInShops = setOf(Category.RESTAURACIE, Category.UBYTOVANIE, Category.VOLNY_CAS, Category.SLUZBY)
+    private val shopTypes = setOf(MerchantType.GROCERY, MerchantType.DRUGSTORE, MerchantType.PHARMACY, MerchantType.HOME)
+
+    /**
+     * Kategorizuje položku. Poradie:
+     * 1) ručné pravidlo používateľa (názov položky → kategória),
+     * 2) záloha za obal (vždy samostatná skupina),
+     * 3) TYP PREVÁDZKY: reštaurácia / hotel / wellness / oblečenie… → celý bloček do jednej kategórie,
+     * 4) zľava (záporná položka),
+     * 5) vstavaná AI [ai] (ak je zapnutá a je si dosť istá),
+     * 6) kľúčové slová v názve položky,
+     * 7) náhradná kategória podľa typu prevádzky (napr. lekáreň → Zdravie).
+     */
+    fun categorizeWithSource(
+        itemName: String,
+        merchantType: MerchantType,
+        priceCents: Long,
+        userRules: Map<String, Category> = emptyMap(),
+        ai: ((String) -> Category?)? = null
+    ): Result {
+        val n = normalize(itemName)
+        userRules[n]?.let { return Result(it) }
+        val padded = " $n "
+        if (depositKeys.any { padded.contains(" $it") }) return Result(Category.ZALOHY)
+        merchantType.single?.let { return Result(it) }
+        if (priceCents < 0 && (n.contains("zlav") || n.contains("kupon") || n.isBlank())) return Result(Category.ZLAVY)
+        if (ai != null && priceCents >= 0) {
+            val p = ai(itemName)
+            if (p != null && !(p in notInShops && merchantType in shopTypes)) return Result(p, byAi = true)
+        }
+        val byName = rules.firstOrNull { (_, keys) -> keys.any { k -> padded.contains(" $k") } }?.first
+        return Result(byName ?: merchantType.fallback)
+    }
+
     fun categorizeItem(
         itemName: String,
         merchantType: MerchantType,
         priceCents: Long,
-        userRules: Map<String, Category> = emptyMap()
-    ): Category {
-        val n = normalize(itemName)
-        userRules[n]?.let { return it }
-        val padded = " $n "
-        if (depositKeys.any { padded.contains(" $it") }) return Category.ZALOHY
-        merchantType.single?.let { return it }
-        if (priceCents < 0 && (n.contains("zlav") || n.contains("kupon") || n.isBlank())) return Category.ZLAVY
-        val byName = rules.firstOrNull { (_, keys) -> keys.any { k -> padded.contains(" $k") } }?.first
-        return byName ?: merchantType.fallback
-    }
+        userRules: Map<String, Category> = emptyMap(),
+        ai: ((String) -> Category?)? = null
+    ): Category = categorizeWithSource(itemName, merchantType, priceCents, userRules, ai).category
 
     /** Skratka: typ prevádzky sa určí z jej názvu. */
     fun categorize(

@@ -39,6 +39,7 @@ object SyncPayload {
                     putN("origQuantity", i.origQuantity)
                     putN("origPriceCents", i.origPriceCents)
                     putN("origDiscountCents", i.origDiscountCents)
+                    putN("catSource", i.catSource)
                 })
             }
         })
@@ -81,7 +82,8 @@ object SyncPayload {
                 excluded = i.optBoolean("excluded", false),
                 origQuantity = if (i.isNull("origQuantity")) null else i.getDouble("origQuantity"),
                 origPriceCents = if (i.isNull("origPriceCents")) null else i.getLong("origPriceCents"),
-                origDiscountCents = if (i.isNull("origDiscountCents")) null else i.getLong("origDiscountCents")
+                origDiscountCents = if (i.isNull("origDiscountCents")) null else i.getLong("origDiscountCents"),
+                catSource = i.str("catSource")
             )
         }
         return Receipt(r, items)

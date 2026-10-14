@@ -86,6 +86,31 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
         get() = prefs.getBoolean("mockMode", false)
         set(v) = prefs.edit().putBoolean("mockMode", v).apply()
 
+    /** Vstavaná AI na zaraďovanie položiek (len v telefóne, nič neodosiela). */
+    var aiEnabled: Boolean
+        get() = prefs.getBoolean("aiEnabled", true)
+        set(v) = prefs.edit().putBoolean("aiEnabled", v).apply()
+
+    /** AI telefónu (Gemini Nano) – má prednosť pred vstavanou AI, ak ju telefón má a používateľ ju zapne. */
+    var phoneAiEnabled: Boolean
+        get() = prefs.getBoolean("phoneAiEnabled", false)
+        set(v) = prefs.edit().putBoolean("phoneAiEnabled", v).apply()
+
+    private suspend fun aiFn(): ((String) -> Category?)? {
+        if (!aiEnabled) return null
+        val m = InternalAi.get(context, dao)
+        return { name -> m.predict(name)?.category }
+    }
+
+    /** Zapne/vypne vstavanú AI a preradí existujúce bločky. */
+    suspend fun setAi(on: Boolean) {
+        aiEnabled = on
+        recategorizeReceipts(dao.allReceiptsWithItems())
+        prefs.edit().putString("aiVersion", aiVersionKey()).apply()
+    }
+
+    private fun aiVersionKey() = "${sk.miro.blocky.domain.ItemClassifier.MODEL_VERSION}:$aiEnabled"
+
     /** Kontrola aktualizácií na GitHube (posiela len bežnú požiadavku na stiahnutie, žiadne dáta). */
     var autoUpdate: Boolean
         get() = prefs.getBoolean("autoUpdate", true)
@@ -240,16 +265,20 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
             editedAt = System.currentTimeMillis()
         )
         // Zľavy (záporné riadky) sa pripočítajú k produktu, ku ktorému patria.
+        val ai = if (forced == null && mType.single == null) aiFn() else null
         val folded = if (forced != null) p.items.map { DiscountFolder.Folded(it.priceCents, 0) }
             else DiscountFolder.fold(p.items.map { DiscountFolder.Line(it.name, it.priceCents, it.itemType) })
         val items = p.items.zip(folded).mapNotNull { (src, f) ->
             if (f == null) return@mapNotNull null
             val norm = Categorizer.normalize(src.name)
+            val res = if (forced != null) Categorizer.Result(forced)
+                else Categorizer.categorizeWithSource(src.name, mType, src.priceCents, userRules, ai)
             ItemEntity(
                 receiptDbId = 0, name = src.name, normName = norm, quantity = src.quantity,
                 priceCents = f.priceCents, vatRate = src.vatRate, itemType = src.itemType,
-                category = (forced ?: Categorizer.categorizeItem(src.name, mType, src.priceCents, userRules)).name,
-                categoryManual = forced != null, discountCents = f.discountCents
+                category = res.category.name,
+                categoryManual = forced != null, discountCents = f.discountCents,
+                catSource = if (res.byAi) "ai" else null
             )
         }
         val id = try {
@@ -271,7 +300,32 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
                 sync.queue("rule", normName, category.name)
                 sync.schedule()
             }
-        } else { dao.setItemCategory(itemId, category.name); touchItem(itemId) }
+        } else {
+            dao.setItemCategory(itemId, category.name); touchItem(itemId)
+            // oprava = nový príklad pre vstavanú AI (učí sa z neho na podobných názvoch)
+            dao.upsertAiExample(AiExampleEntity(normName, category.name))
+            if (sync.enabled) sync.queue("aiex", normName, category.name)
+        }
+        InternalAi.rebuild(context, dao)
+    }
+
+    // ---------- AI telefónu (Gemini Nano) ----------
+
+    /** Zaradí položky pomocou AI telefónu. Volá sa len pri otvorenej aplikácii (podmienka Androidu). Vráti počet zmien. */
+    suspend fun refineWithPhoneAi(): Int {
+        if (!phoneAiEnabled || !PhoneAi.isReady()) return 0
+        var changed = 0
+        repeat(5) {   // najviac 5 dávok naraz, zvyšok pri ďalšom otvorení
+            val batch = dao.itemsForPhoneAi(20)
+            if (batch.isEmpty()) return changed
+            val answers = PhoneAi.classify(batch.map { it.name }) ?: return changed
+            batch.forEachIndexed { i, item ->
+                val c = answers.getOrNull(i)
+                if (c != null) { dao.setItemCategoryAuto(item.id, c.name, "nano"); changed++ }
+                else dao.setItemCategoryAuto(item.id, item.category, "nano-none")
+            }
+        }
+        return changed
     }
 
     suspend fun deleteReceipt(id: Long) {
@@ -305,6 +359,7 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
 
     private suspend fun recategorizeReceipts(list: List<ReceiptWithItems>) {
         val userRules = dao.rules().associate { it.normName to Category.fromName(it.category) }
+        val ai = aiFn()
         for (rw in list) {
             val r = rw.receipt
             if (r.source == "MANUAL") continue
@@ -312,18 +367,19 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
             val type = resolveMerchant(key, r.merchantName)
             if (r.merchantKey != key || r.merchantType != type.name) dao.setReceiptMerchant(r.id, key, type.name)
             for (i in rw.items) {
-                if (i.categoryManual) continue
-                val c = Categorizer.categorizeItem(i.name, type, i.priceCents, userRules).name
-                if (c != i.category) dao.setItemCategoryAuto(i.id, c)
+                if (i.categoryManual || i.catSource == "nano") continue   // ručná oprava a AI telefónu ostávajú
+                val res = Categorizer.categorizeWithSource(i.name, type, i.priceCents, userRules, ai)
+                val src = if (res.byAi) "ai" else null
+                if (res.category.name != i.category || src != i.catSource) dao.setItemCategoryAuto(i.id, res.category.name, src)
             }
         }
     }
 
     /** Pri novej verzii kategorizácie jednorazovo preradí všetky existujúce bločky (ručné zmeny ostanú). */
     suspend fun migrateIfNeeded() {
-        if (prefs.getInt("catVersion", 0) < CATEGORIZER_VERSION) {
+        if (prefs.getInt("catVersion", 0) < CATEGORIZER_VERSION || prefs.getString("aiVersion", "") != aiVersionKey()) {
             recategorizeReceipts(dao.allReceiptsWithItems())
-            prefs.edit().putInt("catVersion", CATEGORIZER_VERSION).apply()
+            prefs.edit().putInt("catVersion", CATEGORIZER_VERSION).putString("aiVersion", aiVersionKey()).apply()
         }
         if (prefs.getInt("discountFold", 0) < 1) {
             foldExistingDiscounts()

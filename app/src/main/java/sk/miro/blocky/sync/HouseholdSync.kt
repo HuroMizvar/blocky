@@ -144,6 +144,7 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
     private suspend fun queueAllSettings() {
         val now = System.currentTimeMillis()
         dao.rules().forEach { queue("rule", it.normName, it.category, now) }
+        dao.aiExamples().forEach { queue("aiex", it.normName, it.category, now) }
         dao.userMerchants().forEach { queue("merchant", it.mkey, JSONObject().put("name", it.name).put("type", it.type).toString(), now) }
         dao.budgetList().forEach { queue("budget", it.category, it.monthlyCents.toString(), now) }
         queue("profile", "household", hooks.profileJson(), now)
@@ -340,7 +341,11 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
         val kv = SyncPayload.kvFromJson(SyncCrypto.decrypt(k, enc))
         if (dao.outbox().any { it.kindKey == "${kv.kind}:${kv.key}" }) return   // naša novšia zmena čaká na odoslanie
         when (kv.kind) {
-            "rule" -> if (kv.value == null) dao.deleteRule(kv.key) else dao.upsertRule(CategoryRuleEntity(kv.key, kv.value))
+            "rule" -> {
+                if (kv.value == null) dao.deleteRule(kv.key) else dao.upsertRule(CategoryRuleEntity(kv.key, kv.value))
+                InternalAi.invalidate()
+            }
+            "aiex" -> kv.value?.let { dao.upsertAiExample(AiExampleEntity(kv.key, it)); InternalAi.invalidate() }
             "merchant" -> kv.value?.let { v ->
                 val o = JSONObject(v)
                 dao.upsertMerchant(MerchantEntity(kv.key, o.getString("name"), o.getString("type"), true))

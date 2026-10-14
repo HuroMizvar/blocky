@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         if (stoppedAt > 0 && System.currentTimeMillis() - stoppedAt > 60_000) returnToScan.intValue++
-        vm.syncSoon()   // spoločná domácnosť: stiahnuť bločky ostatných členov
+        vm.onForeground()   // domácnosť: stiahnuť bločky ostatných; AI telefónu: zaradiť čakajúce položky
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

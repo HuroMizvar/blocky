@@ -12,3 +12,5 @@
 # Čitateľnejšie stack trace v prípade chyby
 -keepattributes SourceFile,LineNumberTable
 -keep class sk.miro.blocky.sync.SyncWorker { <init>(...); }
+# ML Kit GenAI (AI telefónu) – voliteľné triedy, ktoré na niektorých zariadeniach chýbajú
+-dontwarn com.google.mlkit.genai.**

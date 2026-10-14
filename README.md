@@ -147,3 +147,13 @@ app/src/test/…            unit testy logiky (bežia aj v CI)
 5. Nastavenia projektu (ozubené koliesko) → Vaše aplikácie → **Android** → balík `sk.miro.blocky`,
    SHA-1 `B0:13:28:72:53:79:E5:7B:6F:F2:3C:4D:D0:1E:A4:B5:03:43:33:B3` → Registrovať → stiahnuť **google-services.json**.
 6. Súbor `google-services.json` nahrať do koreňa repozitára na GitHube (Add file → Upload files).
+
+## Zaraďovanie pomocou AI (voliteľné, Nastavenia → Zaraďovanie položiek)
+- **Vstavaná AI** (predvolene zapnutá): Naive Bayes nad časťami slov, beží len v telefóne, nič neodosiela.
+  Rozumie skratkám z bločkov a učí sa z opráv používateľa (v domácnosti sa opravy zdieľajú).
+  Model: `app/src/main/assets/item_model.tsv`, tréning: `tools/ai/` (`python3 export.py <model> <expected>`).
+- Poradie: ručné pravidlo → záloha → typ prevádzky → zľava → **AI** → kľúčové slová → náhradná kategória.
+- **AI telefónu (Gemini Nano cez ML Kit)**: len na podporovaných telefónoch, len po zapnutí používateľom
+  (ML Kit posiela Googlu diagnostiku – nie text položiek). Ak je zapnutá, má prednosť pred vstavanou AI.
+- Merania (tools/ai): skutočné položky používateľa 30/31 (pravidlá samotné 8/31); úplne neznáme produkty ~55 % správne,
+  ~30 % ostane nezaradených (radšej „Iné“ ako zlá kategória).

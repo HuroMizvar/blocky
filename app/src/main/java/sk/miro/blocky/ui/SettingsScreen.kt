@@ -29,6 +29,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onExport: () -> Unit) 
             .padding(bottom = 32.dp)) {
             HouseholdSection(vm)
             HorizontalDivider(Modifier.padding(top = 20.dp))
+            AiSection(vm)
+            HorizontalDivider(Modifier.padding(top = 20.dp))
             PrivacySection(vm, onExport, onBack)
             HorizontalDivider(Modifier.padding(top = 20.dp))
             UpdateSection(vm)
@@ -188,4 +190,48 @@ private fun PrivacySection(vm: MainViewModel, onExport: () -> Unit, onDeleted: (
         },
         dismissButton = { TextButton(onClick = { confirm = false }) { Text("Zrušiť") } }
     )
+}
+
+/** Zaraďovanie položiek pomocou AI: vstavaná AI (v aplikácii) a voliteľne AI telefónu (Gemini Nano). */
+@Composable
+private fun AiSection(vm: MainViewModel) {
+    val ai by vm.aiEnabled.collectAsState()
+    val phone by vm.phoneAiEnabled.collectAsState()
+    val phoneState by vm.phoneAiState.collectAsState()
+    val msg by vm.aiMsg.collectAsState()
+    SectionTitle("Zaraďovanie položiek (AI)")
+    BCard(padding = PaddingValues(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Vstavaná AI", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("Rozumie aj skratkám z bločkov (napr. „MLK POLOT.“). Beží len v telefóne, nič neodosiela " +
+                    "a učí sa z vašich opráv.", fontSize = 12.sp, color = Pal.Muted, lineHeight = 16.sp)
+            }
+            Switch(ai, vm::setAiEnabled)
+        }
+        HorizontalDivider(Modifier.padding(vertical = 12.dp), color = Pal.Track)
+        when (phoneState) {
+            null -> Column {
+                Text("AI telefónu (Gemini Nano)", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("Niektoré novšie telefóny majú vlastnú AI. Zistenie aj používanie prebieha cez Google ML Kit, " +
+                    "ktorý posiela Googlu diagnostické údaje (model telefónu, chyby – nie vaše položky).",
+                    fontSize = 12.sp, color = Pal.Muted, lineHeight = 16.sp)
+                TextButton(onClick = vm::checkPhoneAi, contentPadding = PaddingValues(0.dp)) { Text("Zistiť, či ju má tento telefón") }
+            }
+            sk.miro.blocky.data.PhoneAi.State.UNAVAILABLE -> Text(
+                "Tento telefón nemá vstavanú AI (Gemini Nano). Používa sa AI aplikácie.", fontSize = 12.sp, color = Pal.Muted)
+            else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("AI telefónu (Gemini Nano)", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Ak je zapnutá, má prednosť pred vstavanou AI. Názvy položiek spracuje v telefóne, " +
+                        "ale Google pri nej zbiera diagnostické údaje (model telefónu, veľkosť vstupu, chyby – nie text položiek)." +
+                        if (phoneState == sk.miro.blocky.data.PhoneAi.State.DOWNLOADABLE) " Pri zapnutí sa stiahne do telefónu." else "",
+                        fontSize = 12.sp, color = Pal.Muted, lineHeight = 16.sp)
+                }
+                Switch(phone, { vm.setPhoneAiEnabled(it) }, enabled = ai || phone)
+            }
+        }
+        msg?.let { Text(it, fontSize = 12.sp, color = Pal.Green, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp)) }
+        TextButton(onClick = vm::recategorizeAll, contentPadding = PaddingValues(0.dp)) { Text("Preradiť všetky bločky znova") }
+    }
 }

@@ -309,7 +309,12 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
                                     else -> ""
                                 }
                                 Text(if (ex) "Nezapočítané – vrátené / reklamované"
-                                     else qty + c.label + if (item.categoryManual) " · upravené" else "",
+                                     else qty + c.label + when {
+                                         item.categoryManual -> " · upravené"
+                                         item.catSource == "nano" -> " · AI telefónu"
+                                         item.catSource == "ai" -> " · AI"
+                                         else -> ""
+                                     },
                                     fontSize = 12.sp, color = if (ex) Pal.Muted else catStyle(c).fg)
                                 if (qtyChanged && !ex) Text("na bločku ${eur(item.origPriceCents ?: item.priceCents)} · počet upravený",
                                     fontSize = 12.sp, color = Pal.Amber, fontWeight = FontWeight.SemiBold)
@@ -380,7 +385,8 @@ private fun ItemEditDialog(item: ItemEntity, onDismiss: () -> Unit, onCategory: 
                     CatBadge(c, 36)
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Kategória", fontSize = 12.sp, color = Pal.Muted)
+                        Text(if (item.byAi) "Kategória – navrhla AI, skontrolujte" else "Kategória", fontSize = 12.sp,
+                            color = if (item.byAi) Pal.Amber else Pal.Muted)
                         Text(c.label, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     }
                     Text("Zmeniť", color = Pal.Green, fontWeight = FontWeight.Bold, fontSize = 14.sp)

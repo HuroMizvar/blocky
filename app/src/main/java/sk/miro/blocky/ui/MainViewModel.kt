@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import sk.miro.blocky.data.*
 import sk.miro.blocky.domain.*
 import sk.miro.blocky.sync.HouseholdSync
+import sk.miro.blocky.data.PhoneAi
 import sk.miro.blocky.sync.Invite
 import sk.miro.blocky.sync.Member
 import sk.miro.blocky.sync.SyncStatus
@@ -199,6 +200,56 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun syncSoon() = repo.sync.schedule()
 
+    // ---------- Zaraďovanie pomocou AI ----------
+    private val _ai = MutableStateFlow(repo.aiEnabled)
+    val aiEnabled: StateFlow<Boolean> = _ai
+    private val _phoneAi = MutableStateFlow(repo.phoneAiEnabled)
+    val phoneAiEnabled: StateFlow<Boolean> = _phoneAi
+    private val _phoneAiState = MutableStateFlow<PhoneAi.State?>(null)
+    /** null = ešte nezistené */
+    val phoneAiState: StateFlow<PhoneAi.State?> = _phoneAiState
+    private val _aiMsg = MutableStateFlow<String?>(null)
+    val aiMsg: StateFlow<String?> = _aiMsg
+
+    fun setAiEnabled(on: Boolean) {
+        _ai.value = on
+        viewModelScope.launch(Dispatchers.IO) {
+            _aiMsg.value = "Preraďujem bločky…"
+            repo.setAi(on)
+            _aiMsg.value = if (on) "Vstavaná AI je zapnutá, bločky sú preradené." else "AI je vypnutá, zaraďujú sa len pravidlá."
+        }
+    }
+
+    fun setPhoneAiEnabled(on: Boolean) = viewModelScope.launch {
+        if (on && _phoneAiState.value == PhoneAi.State.DOWNLOADABLE) {
+            _aiMsg.value = "Sťahujem AI do telefónu… (môže to trvať niekoľko minút)"
+            if (!PhoneAi.download()) { _aiMsg.value = "AI telefónu sa nepodarilo stiahnuť."; return@launch }
+            _phoneAiState.value = PhoneAi.state()
+        }
+        repo.phoneAiEnabled = on
+        _phoneAi.value = on
+        if (on) refinePhoneAi() else _aiMsg.value = null
+    }
+
+    /** Na žiadosť používateľa zistí, či má telefón vlastnú AI. */
+    fun checkPhoneAi() = viewModelScope.launch { _phoneAiState.value = PhoneAi.state() }
+
+    /** AI telefónu zaradí čakajúce položky (len pri otvorenej aplikácii). */
+    fun refinePhoneAi() = viewModelScope.launch {
+        if (!repo.phoneAiEnabled) return@launch
+        val n = try { repo.refineWithPhoneAi() } catch (e: Exception) { 0 }
+        if (n > 0) _aiMsg.value = "AI telefónu zaradila $n položiek."
+    }
+
+    fun recategorizeAll() = viewModelScope.launch(Dispatchers.IO) {
+        _aiMsg.value = "Preraďujem bločky…"
+        repo.setAi(repo.aiEnabled)
+        _aiMsg.value = "Hotovo – všetky bločky sú preradené (vaše ručné opravy ostali)."
+    }
+
+    /** Volá sa pri návrate do aplikácie. */
+    fun onForeground() { syncSoon(); refinePhoneAi() }
+
     fun refreshMembers() = viewModelScope.launch {
         _members.value = try { repo.sync.members() } catch (e: Exception) { _members.value }
     }
@@ -253,6 +304,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // po synchronizácii načítať profil domácnosti (mohol ho zmeniť iný člen)
         viewModelScope.launch { HouseholdSync.status.collect { if (!it.running) _profile.value = repo.profile } }
         repo.sync.schedule()
+        // ML Kit sa volá LEN ak používateľ AI telefónu zapol (aj zistenie dostupnosti posiela Googlu diagnostiku)
+        if (repo.phoneAiEnabled) viewModelScope.launch {
+            _phoneAiState.value = PhoneAi.state()
+            if (_phoneAiState.value != PhoneAi.State.AVAILABLE) { repo.phoneAiEnabled = false; _phoneAi.value = false }
+            refinePhoneAi()
+        }
         if (updater.enabled && repo.autoUpdate) checkUpdate(silent = true)
     }
 

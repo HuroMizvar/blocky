@@ -76,7 +76,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
+    kotlinOptions {
+        jvmTarget = "17"
+        // knižnica ML Kit GenAI môže byť zostavená novším Kotlinom – kontrola verzie metadát by zbytočne zlyhala
+        freeCompilerArgs += listOf("-Xskip-metadata-version-check")
+    }
     buildFeatures {
         compose = true
         buildConfig = true
@@ -105,6 +109,9 @@ dependencies {
     implementation("androidx.camera:camera-view:$camerax")
     // ZXing – čítanie QR priamo v telefóne, bez Google služieb a bez odosielania čohokoľvek
     implementation("com.google.zxing:core:3.5.3")
+
+    // AI telefónu (Gemini Nano) – použije sa len na podporovaných telefónoch a len ak ju používateľ zapne
+    implementation("com.google.mlkit:genai-prompt:1.0.0-beta4")
 
     // Databáza
     val room = "2.6.1"
