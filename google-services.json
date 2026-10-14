@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "247523201901",
+    "project_id": "blocky-domacnost",
+    "storage_bucket": "blocky-domacnost.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:247523201901:android:1c6bdf7de1a981451c4064",
+        "android_client_info": {
+          "package_name": "sk.miro.blocky"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWACQ735fjpxHQ40vdlAfNqrk-6F2n_Zc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
