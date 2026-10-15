@@ -188,7 +188,7 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
                 when (existing.status) {
                     "DONE", "DUP" -> {
                         val r = existing.receiptDbId?.let { dao.receiptById(it) }
-                        if (r != null || existing.status == "DUP") return EnqueueResult.AlreadyHave(r)
+                        if (r != null) return EnqueueResult.AlreadyHave(r)
                         // bloček medzitým zmazali → naskenovať znova
                         dao.updatePending(existing.copy(status = "PENDING", attempts = 0, message = null, receiptDbId = null))
                     }
@@ -271,7 +271,7 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
         } catch (e: android.database.sqlite.SQLiteConstraintException) {
             return ScanResult.Duplicate(p.receiptId, dao.receiptByReceiptId(p.receiptId)) // súbežné uloženie
         }
-        if (sync.enabled && source != DemoData.SOURCE) sync.schedule()
+        if (sync.enabled && source != DemoData.SOURCE) { sync.forgetDeletion(p.receiptId); sync.schedule() }
         return ScanResult.Saved(id, p.merchantName, p.totalCents, items.size)
     }
 
@@ -357,9 +357,26 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
         return changed
     }
 
+    /** Úprava ručne zadaného bločku: popis, suma, kategória. */
+    suspend fun updateManual(id: Long, merchant: String, cents: Long, category: Category) {
+        val rw = dao.receiptWithItemsOnce(id) ?: return
+        val name = merchant.ifBlank { category.label }
+        val r = rw.receipt.copy(merchantName = merchant.ifBlank { "Ručný záznam" }, totalCents = cents,
+            dirty = sync.enabled, editedAt = System.currentTimeMillis())
+        val base = rw.items.firstOrNull()
+        val item = (base ?: ItemEntity(receiptDbId = id, name = name, normName = "", quantity = 1.0, priceCents = cents,
+            vatRate = null, itemType = "MANUAL", category = category.name))
+            .copy(name = name, normName = Categorizer.normalize(name), priceCents = cents, category = category.name,
+                categoryManual = true, catSource = null, discountCents = 0, excluded = false,
+                origQuantity = null, origPriceCents = null, origDiscountCents = null, quantity = 1.0)
+        dao.replaceReceipt(r, listOf(item))
+        if (sync.enabled) sync.schedule()
+    }
+
     suspend fun deleteReceipt(id: Long) {
         val r = dao.receiptById(id)
         dao.deleteReceipt(id)
+        dao.deletePendingFor(id)   // zmazaný bloček sa dá naskenovať znova
         if (sync.enabled && r?.syncId != null) { dao.addTombstone(SyncTombstoneEntity(r.syncId)); sync.schedule() }
     }
 

@@ -18,7 +18,9 @@ data class CategoryStat(
     val budgetCents: Long?
 )
 
-data class MerchantStat(val name: String, val cents: Long, val visits: Int, val type: MerchantType = MerchantType.UNKNOWN)
+data class MerchantStat(val name: String, val cents: Long, val visits: Int, val type: MerchantType = MerchantType.UNKNOWN,
+                        /** kategória s najvyššou sumou (ikona pri ručných záznamoch a neznámych prevádzkach) */
+                        val mainCategory: Category? = null)
 
 /**
  * Popis domácnosti, ktorý si používateľ vyplní pri tipoch. Ukladá sa len v telefóne.
@@ -123,7 +125,8 @@ object Analytics {
 
         val merchants = cur.groupBy { it.merchantName }.map { (name, list) ->
             MerchantStat(name, list.sumOf { it.priceCents }, list.map { it.receiptDbId }.distinct().size,
-                MerchantType.fromName(list.first().merchantType))
+                MerchantType.fromName(list.first().merchantType),
+                list.groupBy { it.category }.maxByOrNull { (_, l) -> l.sumOf { it.priceCents } }?.key?.let { Category.fromName(it) })
         }.sortedByDescending { it.cents }
 
         val topItems = cur.filter { it.priceCents > 0 && it.category !in setOf(Category.ZALOHY.name, Category.ZLAVY.name) }

@@ -114,7 +114,9 @@ data class ReceiptListRow(
     val excludedCount: Int,
     /** počet ručne upravených položiek (prečiarknuté alebo zmenené množstvo) */
     val editedCount: Int = 0,
-    val itemCount: Int = 0
+    val itemCount: Int = 0,
+    /** kategória najdrahšej položky (ikona ručne zadaného bločku) */
+    val mainCategory: String? = null
 )
 
 @Entity(tableName = "budgets")
@@ -238,7 +240,8 @@ abstract class BlockyDao {
                 (SELECT COUNT(*) FROM items i WHERE i.receiptDbId = r.id AND i.excluded = 1) AS excludedCount,
                 (SELECT COUNT(*) FROM items i WHERE i.receiptDbId = r.id
                     AND (i.excluded = 1 OR i.origQuantity IS NOT NULL)) AS editedCount,
-                (SELECT COUNT(*) FROM items i WHERE i.receiptDbId = r.id AND i.priceCents > 0) AS itemCount
+                (SELECT COUNT(*) FROM items i WHERE i.receiptDbId = r.id AND i.priceCents > 0) AS itemCount,
+                (SELECT i.category FROM items i WHERE i.receiptDbId = r.id ORDER BY i.priceCents DESC LIMIT 1) AS mainCategory
               FROM receipts r ORDER BY r.issuedAt DESC""")
     abstract fun receiptList(): Flow<List<ReceiptListRow>>
 
@@ -372,6 +375,13 @@ abstract class BlockyDao {
 
     @Query("SELECT * FROM receipts WHERE syncId = :syncId LIMIT 1")
     abstract suspend fun receiptBySyncId(syncId: String): ReceiptEntity?
+
+    @Query("DELETE FROM pending_scans WHERE receiptDbId = :receiptDbId")
+    abstract suspend fun deletePendingFor(receiptDbId: Long)
+
+    @Transaction
+    @Query("SELECT * FROM receipts WHERE id = :id")
+    abstract suspend fun receiptWithItemsOnce(id: Long): ReceiptWithItems?
 
     @Query("DELETE FROM items WHERE receiptDbId = :receiptDbId")
     abstract suspend fun deleteItemsOf(receiptDbId: Long)

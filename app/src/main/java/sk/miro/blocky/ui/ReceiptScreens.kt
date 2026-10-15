@@ -185,7 +185,7 @@ private fun ReceiptRow(row: ReceiptListRow, onClick: () -> Unit) {
         .background(if (edited) Pal.AmberSoft.copy(alpha = 0.55f) else Color.Transparent)
         .clickable(onClick = onClick)
         .padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (r.source == "MANUAL") CatBadge(Category.INE, 42)
+        if (r.source == "MANUAL") CatBadge(Category.fromName(row.mainCategory ?: "INE"), 42)
         else MerchantBadge(MerchantType.fromName(r.merchantType), 42)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -227,6 +227,7 @@ fun EditedChip(modifier: Modifier = Modifier, text: String = "upravený") {
 fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
     val data by vm.repo.receipt(id).collectAsState(initial = null)
     var editingId by remember { mutableStateOf<Long?>(null) }
+    var editManual by remember { mutableStateOf(false) }
     var pickingFor by remember { mutableStateOf<ItemEntity?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
     var changeType by remember { mutableStateOf(false) }
@@ -256,7 +257,12 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
                             Text("Zmeniť typ prevádzky", fontSize = 12.sp, color = Pal.Muted)
                         }
                     }
-                    Text(shortMerchant(d.receipt.merchantName), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(shortMerchant(d.receipt.merchantName), Modifier.weight(1f), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                        if (d.receipt.source == "MANUAL") TextButton(onClick = { editManual = true }) {
+                            Icon(Icons.Default.Edit, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Upraviť")
+                        }
+                    }
                     Text(fmtDate(d.receipt.issuedAt), fontSize = 13.sp, color = Pal.Muted)
                     d.receipt.addedBy?.let { who ->
                         Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -351,6 +357,18 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
         onQuantity = { q -> vm.setQuantity(editingItem.id, q) },
         onExclude = { ex -> vm.setExcluded(editingItem.id, ex) },
         onRestore = { vm.restoreItem(editingItem.id) })
+    val manualRec = data
+    if (editManual && manualRec != null) {
+        val it0 = manualRec.items.firstOrNull()
+        ManualEntryDialog(
+            onDismiss = { editManual = false },
+            title = "Upraviť ručný záznam",
+            initialMerchant = manualRec.receipt.merchantName.takeIf { it != "Ručný záznam" } ?: "",
+            initialCents = manualRec.receipt.totalCents,
+            initialCategory = Category.fromName(it0?.category ?: "INE")
+        ) { m, c, cat -> vm.updateManual(id, m, c, cat); editManual = false }
+    }
+
     pickingFor?.let { item ->
         CategoryPickerDialog(item.name, Category.fromName(item.category), onDismiss = { pickingFor = null }) { c, all ->
             vm.recategorize(item.id, item.normName, c, all); pickingFor = null
@@ -480,16 +498,18 @@ private fun BudgetRow(c: Category, budget: Long?, spent: Long, onSave: (Long?) -
 
 /** Ručné zadanie výdavku bez QR (napr. trh, bloček bez eKasa). */
 @Composable
-fun ManualEntryDialog(onDismiss: () -> Unit, onSave: (String, Long, Category) -> Unit) {
-    var merchant by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var cat by remember { mutableStateOf(Category.INE) }
+fun ManualEntryDialog(onDismiss: () -> Unit, title: String = "Ručný záznam", initialMerchant: String = "",
+                      initialCents: Long? = null, initialCategory: Category = Category.INE,
+                      onSave: (String, Long, Category) -> Unit) {
+    var merchant by remember { mutableStateOf(initialMerchant) }
+    var amount by remember { mutableStateOf(initialCents?.let { "%d,%02d".format(it / 100, it % 100) } ?: "") }
+    var cat by remember { mutableStateOf(initialCategory) }
     var expanded by remember { mutableStateOf(false) }
     val cents = amount.replace(',', '.').toDoubleOrNull()?.let { Math.round(it * 100) }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Pal.Card,
-        title = { Text("Ručný záznam", fontWeight = FontWeight.Bold) },
+        title = { Text(title, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(merchant, { merchant = it }, label = { Text("Obchod / popis") }, singleLine = true,

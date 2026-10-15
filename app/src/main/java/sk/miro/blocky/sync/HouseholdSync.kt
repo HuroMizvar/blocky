@@ -203,11 +203,18 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
     suspend fun remoteDuplicate(receiptId: String): ReceiptEntity? = withContext(Dispatchers.IO) {
         if (!enabled) return@withContext null
         try {
-            val doc = rest().get("$home/receipts/${SyncCrypto.receiptDocId(key, receiptId)}") ?: return@withContext null
+            val docId = SyncCrypto.receiptDocId(key, receiptId)
+            if (dao.tombstones().any { it.docId == docId }) return@withContext null   // práve zmazaný v tomto zariadení
+            val doc = rest().get("$home/receipts/$docId") ?: return@withContext null
             if (FirestoreRest.fieldBool(doc, "deleted")) return@withContext null
             applyReceipt(doc)
             dao.receiptByReceiptId(receiptId)
         } catch (e: Exception) { null }
+    }
+
+    /** Bloček bol znova naskenovaný po zmazaní – zmazanie sa už neposiela. */
+    suspend fun forgetDeletion(receiptId: String) {
+        if (enabled) dao.removeTombstone(SyncCrypto.receiptDocId(key, receiptId))
     }
 
     // ---------- synchronizácia ----------

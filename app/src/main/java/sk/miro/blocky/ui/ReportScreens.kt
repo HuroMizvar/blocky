@@ -163,10 +163,12 @@ fun ReportScreen(
         item {
             ExpandableCard(r.merchants.size, initial = 5, what = "obchody") { limit ->
                 r.merchants.take(limit).forEach { m ->
+                    val generic = m.type == MerchantType.OTHER || m.type == MerchantType.UNKNOWN
+                    val cat = m.mainCategory?.takeIf { generic }
                     ListRow(
-                        leading = { MerchantBadge(m.type, 40) },
+                        leading = { if (cat != null) CatBadge(cat, 40) else MerchantBadge(m.type, 40) },
                         title = shortMerchant(m.name),
-                        subtitle = "${m.visits}× nákup · ${m.type.label}",
+                        subtitle = "${m.visits}× nákup · ${cat?.label ?: m.type.label}",
                         amount = m.cents,
                         onClick = { onOpenItems("merchant", m.name, r.month) }
                     )

@@ -66,6 +66,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val allRows: StateFlow<List<ItemRow>> get() = rows
 
     fun deleteReceipt(id: Long) = viewModelScope.launch { repo.deleteReceipt(id) }
+    fun updateManual(id: Long, merchant: String, cents: Long, c: Category) =
+        viewModelScope.launch { repo.updateManual(id, merchant, cents, c) }
 
     /** Bločky so súčtom započítaných položiek (bez prečiarknutých). */
     val receiptList = repo.receiptList.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
