@@ -55,3 +55,44 @@ class DiscountTest {
         assertNull(r[2])
     }
 }
+
+class DiscountRealReceiptTest {
+    /** Skutočný bloček Tesco 15. 10. 2026: Clubcard zľavy pod medzisúčtom + stornovaná žemľa. */
+    @Test fun tescoClubcardAndStorno() {
+        val r = DiscountFolder.fold(listOf(
+            Line("TF OLD VINES 0.75l", 409, "K"),
+            Line("Magn. j.per. 1,5l VO", 55, "K"),
+            Line("PET obal záloha", 15, "K"),
+            Line("MALOK.RYZ.JOGURT 60g", 70, "K"),
+            Line("Jemná sal.štand.50%", 26, "K"),
+            Line("TS Camembert 120 g", 99, "K"),
+            Line("Lun.Šqvar.nátie.120g", 99, "K"),
+            Line("TS žemľa 50 g", 45, "K"),
+            Line("TS žemľa 50 g", -45, "O"),
+            Line("Pletenka 80 g", 87, "K"),
+            Line("CC MALOK.RYZ.JOGURT", -15, "Z"),
+            Line("CC TF OLD VINES 0.75", -90, "Z")
+        ))
+        assertEquals(Folded(319, 90), r[0])          // víno 4,09 − 0,90
+        assertEquals(Folded(55, 0), r[1])
+        assertEquals(Folded(15, 0), r[2])            // záloha
+        assertEquals(Folded(55, 15), r[3])           // jogurt 0,70 − 0,15
+        assertEquals(Folded(26, 0), r[4])
+        assertEquals(Folded(99, 0), r[5])
+        assertEquals(Folded(99, 0), r[6])
+        assertNull(r[7]); assertNull(r[8])           // stornovaná žemľa zmizne
+        assertEquals(Folded(87, 0), r[9])            // pletenka bez zľavy
+        assertNull(r[10]); assertNull(r[11])
+        // súčet = zaplatené za tovar 7,55 €
+        assertEquals(755L, r.filterNotNull().sumOf { it.priceCents })
+    }
+
+    @Test fun twoDiscountLinesUnderOneProduct() {
+        val r = DiscountFolder.fold(listOf(
+            Line("Maslo", 299, "K"),
+            Line("Zľava", -30, "Z"),
+            Line("Zľava Lidl Plus", -20, "Z")
+        ))
+        assertEquals(Folded(249, 50), r[0])
+    }
+}

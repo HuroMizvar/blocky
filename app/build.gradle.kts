@@ -49,7 +49,16 @@ android {
 
     // Pevný testovací kľúč v repozitári: všetky buildy (CI aj lokálne) majú rovnaký podpis,
     // takže Android ich prijme ako aktualizáciu. Na Google Play by sa použil iný, tajný kľúč.
+    // Kľúč na nahrávanie do Google Play – len v GitHub Secrets (RELEASE_KEYSTORE_*), nikdy v repozitári.
+    val releaseStore = System.getenv("RELEASE_KEYSTORE_FILE")?.let { file(it) }?.takeIf { it.exists() }
+
     signingConfigs {
+        if (releaseStore != null) create("release") {
+            storeFile = releaseStore
+            storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "upload"
+            keyPassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+        }
         create("test") {
             storeFile = file("keystore/test.keystore")
             storePassword = "blockytest"
@@ -66,10 +75,14 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+        // Verzia pre Google Play (AAB): bez samoaktualizácie z GitHubu, podpísaná kľúčom na nahrávanie.
         release {
-            signingConfig = signingConfigs.getByName("test")
-            isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("test")
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            buildConfigField("String", "GH_REPO", "\"\"")
+            buildConfigField("String", "GH_TOKEN", "\"\"")
         }
     }
     compileOptions {

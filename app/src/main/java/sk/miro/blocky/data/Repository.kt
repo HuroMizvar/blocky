@@ -265,6 +265,19 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
             editedAt = System.currentTimeMillis()
         )
         // Zľavy (záporné riadky) sa pripočítajú k produktu, ku ktorému patria.
+        val items = buildItems(p, mType, forced, userRules)
+        val id = try {
+            dao.insertReceiptWithItems(receipt, items)
+        } catch (e: android.database.sqlite.SQLiteConstraintException) {
+            return ScanResult.Duplicate(p.receiptId, dao.receiptByReceiptId(p.receiptId)) // súbežné uloženie
+        }
+        if (sync.enabled && source != DemoData.SOURCE) sync.schedule()
+        return ScanResult.Saved(id, p.merchantName, p.totalCents, items.size)
+    }
+
+    /** Položky bločku: zľavy priradené k produktom, stornované riadky odstránené, kategórie (pravidlá + AI). */
+    private suspend fun buildItems(p: ParsedReceipt, mType: MerchantType, forced: Category?,
+                                   userRules: Map<String, Category>): List<ItemEntity> {
         val ai = if (forced == null && mType.single == null) aiFn() else null
         val folded = if (forced != null) p.items.map { DiscountFolder.Folded(it.priceCents, 0) }
             else DiscountFolder.fold(p.items.map { DiscountFolder.Line(it.name, it.priceCents, it.itemType) })
@@ -281,13 +294,29 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
                 catSource = if (res.byAi) "ai" else null
             )
         }
-        val id = try {
-            dao.insertReceiptWithItems(receipt, items)
-        } catch (e: android.database.sqlite.SQLiteConstraintException) {
-            return ScanResult.Duplicate(p.receiptId, dao.receiptByReceiptId(p.receiptId)) // súbežné uloženie
+        return items
+    }
+
+    /** Raz po aktualizácii: znova spracuje zľavy a storná v uložených bločkoch eKasa (z pôvodných údajov eKasa). */
+    private suspend fun refoldFromRaw() {
+        val userRules = dao.rules().associate { it.normName to Category.fromName(it.category) }
+        for (rw in dao.allReceiptsWithItems()) {
+            val r = rw.receipt
+            val raw = r.rawJson ?: continue
+            if (r.source != "EKASA") continue
+            if (rw.items.any { it.excluded || it.origQuantity != null }) continue   // ručné úpravy nemeníme
+            val parsed = try { EkasaClient.parseResponse(raw) } catch (e: Exception) { continue }
+            val mType = MerchantType.fromName(r.merchantType)
+            val manual = rw.items.filter { it.categoryManual }.associate { it.normName to it.category }
+            val items = buildItems(parsed, mType, null, userRules).map { i ->
+                manual[i.normName]?.let { i.copy(category = it, categoryManual = true, catSource = null) } ?: i
+            }
+            val same = items.size == rw.items.size && items.zip(rw.items.sortedBy { it.id })
+                .all { (a, b) -> a.priceCents == b.priceCents && a.discountCents == b.discountCents && a.name == b.name }
+            if (same) continue
+            val now = System.currentTimeMillis()
+            dao.replaceReceipt(r.copy(dirty = sync.enabled || r.dirty, editedAt = if (sync.enabled) now else r.editedAt), items)
         }
-        if (sync.enabled && source != DemoData.SOURCE) sync.schedule()
-        return ScanResult.Saved(id, p.merchantName, p.totalCents, items.size)
     }
 
     /** Zmení kategóriu položky; ak [applyToAll], zapamätá si pravidlo pre všetky rovnaké názvy. */
@@ -384,6 +413,12 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
         if (prefs.getInt("discountFold", 0) < 1) {
             foldExistingDiscounts()
             prefs.edit().putInt("discountFold", 1).apply()
+        }
+        if (prefs.getInt("discountFold", 0) < 2) {
+            // v2: zľavy podľa názvu produktu (Tesco Clubcard) + stornované položky
+            try { refoldFromRaw() } catch (e: Exception) { }
+            prefs.edit().putInt("discountFold", 2).apply()
+            if (sync.enabled) sync.schedule()
         }
     }
 

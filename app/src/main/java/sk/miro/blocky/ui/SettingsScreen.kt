@@ -35,9 +35,12 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onExport: () -> Unit) 
             HorizontalDivider(Modifier.padding(top = 20.dp))
             UpdateSection(vm)
             HorizontalDivider(Modifier.padding(top = 20.dp))
-            TestSection(vm)
-            HorizontalDivider(Modifier.padding(top = 20.dp))
-            EndpointSection(vm)
+            // nástroje na testovanie len vo verzii z GitHubu (nie v Obchode Play)
+            if (sk.miro.blocky.BuildConfig.DEBUG) {
+                TestSection(vm)
+                HorizontalDivider(Modifier.padding(top = 20.dp))
+                EndpointSection(vm)
+            }
         }
     }
 }
@@ -49,7 +52,8 @@ private fun UpdateSection(vm: MainViewModel) {
     SectionTitle("Aktualizácie")
     Text("Nainštalovaná verzia: ${up.currentVersionName} (build ${up.currentVersion})")
     if (!up.enabled) {
-        Text("Lokálny build – aktualizácie z GitHubu sú vypnuté. Nainštalujte APK z GitHub Actions.",
+        Text(if (sk.miro.blocky.BuildConfig.DEBUG) "Lokálny build – aktualizácie z GitHubu sú vypnuté. Nainštalujte APK z GitHub Actions."
+             else "Aplikáciu aktualizuje Obchod Google Play.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         return
     }
