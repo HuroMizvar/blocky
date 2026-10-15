@@ -39,10 +39,25 @@ jobs:
           ./gradlew --no-daemon testDebugUnitTest assembleDebug
           cp app/build/outputs/apk/debug/app-debug.apk "blocky-$GITHUB_RUN_NUMBER.apk"
 
+      # Verzia pre Google Play (AAB) – len ak sú nastavené tajomstvá s kľúčom na nahrávanie
+      - name: Google Play AAB
+        env:
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then echo "Tajomstvo RELEASE_KEYSTORE_B64 chyba - AAB sa nezostavi"; exit 0; fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          export RELEASE_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
+          ./gradlew --no-daemon bundleRelease
+          cp app/build/outputs/bundle/release/app-release.aab "blocky-play-$GITHUB_RUN_NUMBER.aab"
+          rm -f "$RUNNER_TEMP/upload.jks"
+
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
           MSG: ${{ github.event.head_commit.message }}
         run: |
-          gh release create "b$GITHUB_RUN_NUMBER" "blocky-$GITHUB_RUN_NUMBER.apk" --title "Build $GITHUB_RUN_NUMBER" --notes "${MSG:-Build}" --latest
+          FILES="blocky-$GITHUB_RUN_NUMBER.apk"
+          if [ -f "blocky-play-$GITHUB_RUN_NUMBER.aab" ]; then FILES="$FILES blocky-play-$GITHUB_RUN_NUMBER.aab"; fi
+          gh release create "b$GITHUB_RUN_NUMBER" $FILES --title "Build $GITHUB_RUN_NUMBER" --notes "${MSG:-Build}" --latest
           gh release list --limit 100 --json tagName --jq '.[10:][].tagName' | xargs -r -n1 gh release delete --cleanup-tag --yes
