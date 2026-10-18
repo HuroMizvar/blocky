@@ -47,7 +47,7 @@ fun ItemsScreen(vm: MainViewModel, kind: String, key: String, month: YearMonth,
     val total = rows.sumOf { it.priceCents }
 
     picking?.let { r ->
-        CategoryPickerDialog(r.name, Category.fromName(r.category), onDismiss = { picking = null }) { c, allSame ->
+        CategoryPickerDialog(r.name, Category.fromName(r.category), onDismiss = { picking = null }, onCreate = vm::createCustomCategory) { c, allSame ->
             vm.recategorize(r.itemId, r.normName, c, allSame); picking = null
         }
     }

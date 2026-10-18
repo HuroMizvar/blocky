@@ -75,7 +75,7 @@ class ItemClassifier private constructor(
         const val THRESHOLD = 0.6
         const val LEARN_WEIGHT = 5
         /** zvýšiť pri novom modeli → existujúce položky sa preradia */
-        const val MODEL_VERSION = 1
+        const val MODEL_VERSION = 2
 
         private val STOP = setOf("ks", "kg", "g", "l", "ml", "bal", "x", "pet", "plech", "fl", "cca", "vaz", "sk", "pack",
             "the", "and", "s", "a", "z", "na", "do", "pre", "v", "so", "od", "zo", "k")

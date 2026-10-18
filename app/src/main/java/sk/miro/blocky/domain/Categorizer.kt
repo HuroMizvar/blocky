@@ -3,8 +3,10 @@ package sk.miro.blocky.domain
 import java.text.Normalizer
 
 /** Kategórie výdavkov. [benchmarkShare] = orientačný strop podielu na mesačných výdavkoch (heuristika, nie štatistika). */
-enum class Category(val label: String, val essential: Boolean, val benchmarkShare: Double?) {
+enum class Category(private val baseLabel: String, val essential: Boolean, val benchmarkShare: Double?) {
     MASO("Mäso a ryby", true, null),
+    /** šunky, salámy, klobásy, párky, paštéty, nátierky, hotové šaláty a lahôdky */
+    LAHODKY("Lahôdky a údeniny", true, null),
     MLIECNE("Mliečne a vajcia", true, null),
     PECIVO("Pečivo", true, null),
     OVOCIE_ZELENINA("Ovocie a zelenina", true, null),
@@ -29,11 +31,23 @@ enum class Category(val label: String, val essential: Boolean, val benchmarkShar
     /** Vratné zálohy – sledujú sa ZVLÁŠŤ, nezapočítavajú sa do výdavkov. */
     ZALOHY("Zálohy za fľaše a plechovky", true, null),
     ZLAVY("Zľavy", true, null),
-    INE("Iné", false, null);
+    INE("Iné", false, null),
+
+    /** Vlastné kategórie používateľa – názov, ikonu a farbu určuje [CustomCategories]. */
+    CUSTOM1("Vlastná 1", false, null), CUSTOM2("Vlastná 2", false, null), CUSTOM3("Vlastná 3", false, null),
+    CUSTOM4("Vlastná 4", false, null), CUSTOM5("Vlastná 5", false, null), CUSTOM6("Vlastná 6", false, null),
+    CUSTOM7("Vlastná 7", false, null), CUSTOM8("Vlastná 8", false, null);
+
+    val label: String get() = CustomCategories.labelOf(this) ?: baseLabel
+    val isCustom: Boolean get() = name.startsWith("CUSTOM")
+    /** vlastná kategória, ktorú používateľ nevytvoril, sa nikde nezobrazuje */
+    val active: Boolean get() = !isCustom || CustomCategories.isActive(this)
 
     companion object {
+        /** kategórie, ktoré sa zobrazujú (vstavané + vytvorené vlastné) */
+        val visible: List<Category> get() = entries.filter { it.active }
         fun fromName(n: String): Category = entries.firstOrNull { it.name == n } ?: INE
-        val FOOD = setOf(MASO, MLIECNE, PECIVO, OVOCIE_ZELENINA, TRVANLIVE, MRAZENE_HOTOVE, NAPOJE, SLADKOSTI)
+        val FOOD = setOf(MASO, LAHODKY, MLIECNE, PECIVO, OVOCIE_ZELENINA, TRVANLIVE, MRAZENE_HOTOVE, NAPOJE, SLADKOSTI)
     }
 }
 
@@ -80,11 +94,19 @@ object Categorizer {
             "sirup", "ladovy caj", "ice tea", "energet", "red bull", "monster", "semtex", "big shock", "kava ",
             "kava,", "caj ", "nescafe", "jacobs", "tchibo", "rauch", "relax", "hello", "vinea", "tonic", "smoothie"),
         Category.MRAZENE_HOTOVE to listOf("mrazen", "pizza", "lasagn", "hranolk", "bryndzove", "pirohy",
-            "knedl", "hotove jedlo", "polievk", "instant", "bagel", "wrap", "salat hotov", "sushi"),
+            "knedl", "hotove jedlo", "polievk", "instant", "bagel", "wrap", "sushi"),
+        // lahôdky a údeniny až po hotových jedlách (pizza so šunkou) a pred mäsom (šunka, saláma…) aj pred zeleninou („zemiakový šalát“ nie je zelenina)
+        Category.LAHODKY to listOf("sunka", "sunk.", "salam", "salami", "klobas", "parky", "parok", "parky", "spekac",
+            "slanin", "spek", "pastet", "jaternic", "tlacenk", "debrecin", "mortadel", "kabanos", "udene", "udena",
+            "natierk", "natie", "pomazank", "hummus", "salat vlass", "vlassky", "vlasky salat", "zemiakovy salat",
+            "cestovinovy salat", "majonezovy salat", "rybaci salat", "rybi salat", "salat hotov", "hotovy salat",
+            "coleslaw", "tzatziki", "chorizo", "fuet", "prosciutto", "serrano", "pancetta", "oskvark", "skvark",
+            "lahod", "delikates", "hot dog park", "uherak", "lovecka", "inovec", "vysocin", "herkules",
+            "pecenov", "leberk", "sekana", "bryndzova natierka", "vajickova", "tuniakova natierka"),
         Category.MASO to listOf("kurac", "kuracie", "bravc", "hovadz", "morcac", "mlete maso", "maso",
-            "sunka", "salam", "klobas", "parky", "parok", "slanin", "spek", "pecen", "rezen", "stehn", "krkovic",
-            "kare ", "file", "losos", "tuniak", "makrel", "ryba", "rybi", "kreveta", "pastet", "jaternic",
-            "tlacenk", "hotdog", "salami", "debrecin", "mortadel", "kabanos", "prsia", "krid", "udene"),
+            "rezen", "stehn", "krkovic", "kare ", "file", "losos", "tuniak", "makrel", "ryba", "rybi", "kreveta",
+            "hotdog", "prsia", "krid", "pecen", "kacac", "kacica", "kac.", "jahnac", "telac", "kralik", "pstruh", "kapor",
+            "treska", "pangasius"),
         Category.MLIECNE to listOf("mlieko", "mliek", "jogurt", "syr ", "syr,", "syry", "syr.", "eidam", "gouda",
             "mozzarel", "niva", "bryndz", "tvaroh", "smotan", "maslo", "kefir", "acidko", "zakys", "cmar",
             "vajc", "vajic", "cottage", "parenica", "korbacik", "ostiepok", "nite", "rama", "skyr", "puding",

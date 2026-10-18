@@ -62,6 +62,7 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(android.graphics.Color.WHITE, android.graphics.Color.WHITE)
         )
+        if (savedInstanceState == null) handleShare(intent)
         setContent {
             BlockyTheme {
                 val nav = rememberNavController()
@@ -194,6 +195,38 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleShare(intent)
+    }
+
+    /** E-bloček zdieľaný z e-mailu (PDF / obrázok / text) → nájsť QR a pridať; zobrazí sa na skeneri. */
+    private fun handleShare(intent: Intent?) {
+        intent ?: return
+        val uris = ArrayList<Uri>()
+        when (intent.action) {
+            Intent.ACTION_SEND -> intent.streamUri()?.let { uris += it }
+            Intent.ACTION_SEND_MULTIPLE -> uris += intent.streamUris()
+            Intent.ACTION_VIEW -> intent.data?.let { uris += it }
+            else -> return
+        }
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+        if (uris.isEmpty() && text.isNullOrBlank()) return
+        vm.importReceipts(uris, text)
+        returnToScan.intValue++
+        setIntent(Intent(this, MainActivity::class.java))   // pri otočení obrazovky neimportovať znova
+    }
+
+    @Suppress("DEPRECATION")
+    private fun Intent.streamUri(): Uri? =
+        if (android.os.Build.VERSION.SDK_INT >= 33) getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        else getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+
+    @Suppress("DEPRECATION")
+    private fun Intent.streamUris(): List<Uri> =
+        (if (android.os.Build.VERSION.SDK_INT >= 33) getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        else getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)) ?: emptyList()
 
     private fun exportCsv() {
         vm.export { file ->

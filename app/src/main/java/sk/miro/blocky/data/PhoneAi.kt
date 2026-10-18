@@ -41,7 +41,7 @@ object PhoneAi {
         ok || state() == State.AVAILABLE
     } catch (t: Throwable) { false }
 
-    private val allowed = Category.entries.filter { it != Category.ZALOHY && it != Category.ZLAVY }
+    private val allowed get() = Category.visible.filter { it != Category.ZALOHY && it != Category.ZLAVY }
 
     /** Zaradí názvy položiek. Vráti zoznam v rovnakom poradí (null = AI nevedela), alebo null pri chybe. */
     suspend fun classify(names: List<String>): List<Category?>? = try {

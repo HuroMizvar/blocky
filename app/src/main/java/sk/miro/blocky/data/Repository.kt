@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import sk.miro.blocky.domain.Analytics
 import sk.miro.blocky.domain.Category
 import sk.miro.blocky.domain.Categorizer
+import sk.miro.blocky.domain.CustomCategories
 import sk.miro.blocky.domain.DiscountFolder
 import sk.miro.blocky.domain.HouseholdProfile
 import sk.miro.blocky.domain.ItemEdit
@@ -46,7 +47,7 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
         /** pri exponenciálnom odstupe WorkManagera ≈ niekoľko dní pokusov */
         const val MAX_ATTEMPTS = 25
         /** zvýšiť, keď sa zmení logika kategorizácie → existujúce bločky sa preradia */
-        const val CATEGORIZER_VERSION = 4
+        const val CATEGORIZER_VERSION = 5
     }
 
     private val dao = AppDatabase.get(context).dao()
@@ -54,6 +55,38 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
 
     /** Spoločná domácnosť (voliteľné). */
     val sync = HouseholdSync(context, dao, this)
+
+    init { CustomCategories.load(prefs.getString("customCats", null)) }
+
+    override fun customCategoriesJson(): String = CustomCategories.toJson()
+    override fun applyCustomCategoriesJson(json: String) {
+        CustomCategories.load(json)
+        prefs.edit().putString("customCats", json).apply()
+        customCatsVersion.value++
+    }
+
+    /** mení sa pri zmene vlastných kategórií (aj zo synchronizácie domácnosti) */
+    val customCatsVersion = kotlinx.coroutines.flow.MutableStateFlow(0)
+
+    suspend fun saveCustomCategories() {
+        prefs.edit().putString("customCats", CustomCategories.toJson()).apply()
+        if (sync.enabled) { sync.queue("customcats", "all", CustomCategories.toJson()); sync.schedule() }
+    }
+
+    /** Nová vlastná kategória; null = už je 8 vlastných kategórií. */
+    suspend fun createCustomCategory(label: String, icon: String, color: Int): Category? =
+        CustomCategories.create(label, icon, color)?.also { saveCustomCategories() }
+
+    suspend fun updateCustomCategory(c: Category, label: String, icon: String, color: Int) {
+        CustomCategories.update(c, label, icon, color); saveCustomCategories()
+    }
+
+    /** Zmaže vlastnú kategóriu – jej položky sa presunú do „Iné“. */
+    suspend fun deleteCustomCategory(c: Category) {
+        dao.clearCategory(c.name); dao.deleteRulesFor(c.name); dao.deleteAiExamplesFor(c.name); dao.deleteBudget(c.name)
+        CustomCategories.remove(c); saveCustomCategories()
+        InternalAi.invalidate()
+    }
 
     /** Zaznamená úpravu bločku na odoslanie ostatným členom. */
     private suspend fun touchItem(itemId: Long) {

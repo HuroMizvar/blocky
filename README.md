@@ -36,12 +36,15 @@ alebo pri offline doklade, ktorý ešte nie je v eKasa, to aplikácia skúša au
 ## Funkcie
 | Oblasť | Čo robí |
 |---|---|
-| Skenovanie | CameraX + ML Kit (offline rozpoznanie QR), baterka, ochrana proti duplicitám |
+| Skenovanie | CameraX + ZXing (offline rozpoznanie QR), baterka, ochrana proti duplicitám |
+| E-bločky z e-mailu | *Zdieľať → Bločky* z e-mailu (PDF, obrázok, text s `UID: O-…`) alebo tlačidlo *E-bloček z e-mailu* na skeneri. PDF sa vykreslí v telefóne (`PdfRenderer`) a QR sa prečíta cez ZXing – súbor sa nikam neposiela ani neukladá (`ReceiptImport`) |
 | Načítanie dokladu | eKasa API – obchod, adresa, dátum, položky, množstvá, ceny, DPH. Online (`O-…`) aj offline (OKP) QR |
-| Kategorizácia | 18 kategórií, slovenské kľúčové slová + typ obchodu (pumpa, reštaurácia, lekáreň). Ručná oprava s pamäťou pre rovnaké názvy |
+| Kategorizácia | 26 kategórií vrátane *Lahôdky a údeniny* + až 8 vlastných (názov, ikona, farba), slovenské kľúčové slová + typ obchodu (pumpa, reštaurácia, lekáreň). Ručná oprava s pamäťou pre rovnaké názvy |
 | Mesačný report | Spolu, vs. minulý mesiac, vs. priemer posledných ≤3 mesiacov, lineárna projekcia do konca mesiaca, kategórie, obchody, top položky |
 | Odporúčania | Prekročený / ohrozený rozpočet · nárast kategórie >25 % nad priemer · podiel alkoholu/tabaku/sladkostí/reštaurácií nad orientačným stropom · rovnaký produkt lacnejšie v inom obchode · zdražené položky · drobné impulzívne nákupy · často kupované položky · nevrátené zálohy |
-| Rozpočty | Mesačný limit na kategóriu |
+| Rozpočty | Mesačný limit na kategóriu. *Nastaviť podľa môjho míňania* (`BudgetPlanner`): medián celej histórie (alebo nižšie míňanie posledných 3 mesiacov), −15 % zbytné / −10 % ostatné / −5 % nevyhnutné, zaokrúhlené nadol |
+| Vyhľadávanie | Bločky podľa obchodu aj položiek, so súčtom nájdených položiek |
+| Nastavenia | Záložky: Domácnosť · AI · Aktualizácie · Súkromie a dáta |
 | Export | CSV (oddeľovač `;`, UTF‑8 – otvorí sa priamo v Exceli) |
 | Ručný záznam | Výdavok bez QR (trh, služby) |
 

@@ -1,6 +1,7 @@
 package sk.miro.blocky.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -66,6 +67,37 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val allRows: StateFlow<List<ItemRow>> get() = rows
 
     fun deleteReceipt(id: Long) = viewModelScope.launch { repo.deleteReceipt(id) }
+
+    // ---------- Vlastné kategórie ----------
+    private val _catsVersion get() = repo.customCatsVersion
+    /** mení sa pri každej zmene vlastných kategórií – obrazovky sa prekreslia */
+    val catsVersion: StateFlow<Int> get() = repo.customCatsVersion
+
+    // ---------- Automatické rozpočty ----------
+    /** Návrh rozpočtov z celej histórie míňania. */
+    fun budgetSuggestions(): List<BudgetPlanner.Suggestion> = BudgetPlanner.plan(rows.value)
+
+    fun applyBudgets(list: List<BudgetPlanner.Suggestion>) = viewModelScope.launch {
+        list.forEach { repo.setBudget(it.category, it.budgetCents) }
+    }
+
+    fun createCustomCategory(label: String, icon: String, color: Int): Category? {
+        val c = CustomCategories.create(label, icon, color) ?: return null
+        _catsVersion.value++
+        viewModelScope.launch { repo.saveCustomCategories() }
+        return c
+    }
+
+    fun updateCustomCategory(c: Category, label: String, icon: String, color: Int) {
+        CustomCategories.update(c, label, icon, color)
+        _catsVersion.value++
+        viewModelScope.launch { repo.saveCustomCategories() }
+    }
+
+    fun deleteCustomCategory(c: Category) = viewModelScope.launch {
+        repo.deleteCustomCategory(c)
+        _catsVersion.value++
+    }
     fun updateManual(id: Long, merchant: String, cents: Long, c: Category) =
         viewModelScope.launch { repo.updateManual(id, merchant, cents, c) }
 
@@ -126,6 +158,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 is EnqueueResult.Invalid -> { _vibe.tryEmit(BannerKind.ERROR); _trackKey.value = null
                     _immediate.value = ScanBanner(id, BannerKind.ERROR, r.message, "Namierte na QR kód eKasa na bločku.", null) }
             }
+        }
+    }
+
+    /**
+     * E-bločky z e-mailu: zdieľaný PDF / obrázok / text alebo vybraný súbor.
+     * QR kód sa hľadá v telefóne; nájdené bločky idú do rovnakej fronty ako pri skenovaní kamerou.
+     */
+    fun importReceipts(uris: List<Uri>, text: String? = null) {
+        if (uris.isEmpty() && text.isNullOrBlank()) return
+        val id = ++scanSeq
+        _trackKey.value = null
+        _immediate.value = ScanBanner(id, BannerKind.WAIT, "Hľadám bloček v súbore…", null, null)
+        viewModelScope.launch {
+            val ctx = getApplication<Application>()
+            val codes = LinkedHashSet<String>()
+            codes += ReceiptImport.codesInText(text)
+            for (u in uris.take(20)) codes += ReceiptImport.codesInUri(ctx, u, null)
+            if (codes.isEmpty()) {
+                _vibe.tryEmit(BannerKind.ERROR)
+                _immediate.value = ScanBanner(id, BannerKind.ERROR, "Bloček sa nenašiel",
+                    "V súbore nie je QR kód eKasa. Pošlite PDF alebo obrázok e-bločku, nie len text e-mailu.", null)
+                return@launch
+            }
+            if (codes.size == 1) { lastRaw = null; onQrFast(codes.first()); return@launch }
+            var added = 0; var dup = 0; var bad = 0
+            for (c in codes) when (repo.enqueue(c)) {
+                is EnqueueResult.Accepted -> added++
+                is EnqueueResult.AlreadyHave -> dup++
+                is EnqueueResult.Invalid -> bad++
+            }
+            _vibe.tryEmit(if (added > 0) BannerKind.OK else BannerKind.DUPLICATE)
+            _immediate.value = ScanBanner(id, if (added > 0) BannerKind.OK else BannerKind.DUPLICATE,
+                if (added > 0) "Pridané bločky: $added" else "Tieto bločky už máte",
+                listOfNotNull(
+                    if (added > 0) "Položky sa načítajú z eKasa na pozadí." else null,
+                    if (dup > 0) "Už uložené: $dup" else null,
+                    if (bad > 0) "Neplatné: $bad" else null
+                ).joinToString(" · "), null)
         }
     }
 

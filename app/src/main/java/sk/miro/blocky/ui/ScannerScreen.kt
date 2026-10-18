@@ -98,6 +98,10 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
     var torch by remember { mutableStateOf(false) }   // blesk je predvolene vypnutý
     var camera by remember { mutableStateOf<Camera?>(null) }
     var manual by remember { mutableStateOf(false) }
+    // e-bloček z e-mailu uložený v telefóne (PDF / obrázok)
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) vm.importReceipts(uris)
+    }
 
     // Vibrácia hneď pri rozpoznaní QR (nečaká na odpoveď eKasa).
     LaunchedEffect(Unit) {
@@ -166,6 +170,13 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
                 onOpen = { id -> vm.clearBanner(); onOpenReceipt(id) },
                 onNext = vm::scanNext)
             else HintCard()
+            OutlinedButton(onClick = { filePicker.launch(arrayOf("application/pdf", "image/*")) },
+                Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Pal.Line),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Pal.Card, contentColor = Pal.Ink)) {
+                Icon(Icons.Default.UploadFile, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
+                Text("E-bloček z e-mailu (PDF / obrázok)", fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onClick = onOpenApp, Modifier.weight(1f).height(54.dp), shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Pal.Ink, contentColor = Color.White)) {

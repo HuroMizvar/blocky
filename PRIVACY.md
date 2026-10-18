@@ -11,6 +11,7 @@ Aplikácia je navrhnutá tak, aby vaše údaje zostali súkromné. Nie je ofici�
 |---|---|---|
 | Bločky, položky, ceny, obchody, kategórie, rozpočty, profil domácnosti | len v súkromnom úložisku aplikácie vo vašom telefóne | len vy |
 | Obraz z kamery pri skenovaní | nikam sa neukladá ani neodosiela; QR kód sa číta priamo v telefóne | nikto |
+| E-bločky (PDF, obrázky) zdieľané z e-mailu | QR kód sa prečíta priamo v telefóne, súbor sa po prečítaní zahodí a nikam sa neodosiela | nikto |
 
 Aplikácia **nepoužíva reklamy, analytiku ani reklamné identifikátory**, údaje **nepredáva** a **nepoužíva ich na trénovanie umelej inteligencie**.
 Zálohovanie do cloudu Android je pre aplikáciu vypnuté.

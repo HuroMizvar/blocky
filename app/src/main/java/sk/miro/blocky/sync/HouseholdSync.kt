@@ -37,6 +37,8 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
     interface Hooks {
         fun profileJson(): String
         fun applyProfileJson(json: String)
+        fun customCategoriesJson(): String
+        fun applyCustomCategoriesJson(json: String)
     }
 
     companion object {
@@ -148,6 +150,7 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
         dao.userMerchants().forEach { queue("merchant", it.mkey, JSONObject().put("name", it.name).put("type", it.type).toString(), now) }
         dao.budgetList().forEach { queue("budget", it.category, it.monthlyCents.toString(), now) }
         queue("profile", "household", hooks.profileJson(), now)
+        queue("customcats", "all", hooks.customCategoriesJson(), now)
     }
 
     /** Zmenené nastavenie – odošle sa pri najbližšej synchronizácii. */
@@ -362,6 +365,7 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
                 if (cents == null || cents <= 0) dao.deleteBudget(kv.key) else dao.upsertBudget(BudgetEntity(kv.key, cents))
             }
             "profile" -> kv.value?.let { hooks.applyProfileJson(it) }
+            "customcats" -> kv.value?.let { hooks.applyCustomCategoriesJson(it) }
         }
     }
 

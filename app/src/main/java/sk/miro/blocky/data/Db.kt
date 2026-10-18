@@ -376,6 +376,15 @@ abstract class BlockyDao {
     @Query("SELECT * FROM receipts WHERE syncId = :syncId LIMIT 1")
     abstract suspend fun receiptBySyncId(syncId: String): ReceiptEntity?
 
+    @Query("UPDATE items SET category = 'INE', categoryManual = 0 WHERE category = :category")
+    abstract suspend fun clearCategory(category: String)
+
+    @Query("DELETE FROM category_rules WHERE category = :category")
+    abstract suspend fun deleteRulesFor(category: String)
+
+    @Query("DELETE FROM ai_examples WHERE category = :category")
+    abstract suspend fun deleteAiExamplesFor(category: String)
+
     @Query("DELETE FROM pending_scans WHERE receiptDbId = :receiptDbId")
     abstract suspend fun deletePendingFor(receiptDbId: Long)
 

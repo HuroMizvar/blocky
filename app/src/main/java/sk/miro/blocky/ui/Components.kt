@@ -31,6 +31,7 @@ import sk.miro.blocky.R
 import sk.miro.blocky.domain.Analytics
 import sk.miro.blocky.data.MerchantEntity
 import sk.miro.blocky.domain.Category
+import sk.miro.blocky.domain.CustomCategories
 import sk.miro.blocky.domain.MerchantType
 import sk.miro.blocky.domain.Severity
 import java.time.YearMonth
@@ -162,6 +163,7 @@ data class CatStyle(val bg: Color, val fg: Color, @DrawableRes val icon: Int)
 
 fun catStyle(c: Category): CatStyle = when (c) {
     Category.MASO -> CatStyle(Color(0xFFFCE7E2), Color(0xFFB3361B), R.drawable.ph_cow)
+    Category.LAHODKY -> CatStyle(Color(0xFFFBEDE3), Color(0xFFA0522D), R.drawable.ph_bowl_food)
     Category.MLIECNE -> CatStyle(Color(0xFFE4ECF7), Color(0xFF2F5E9E), R.drawable.ph_cheese)
     Category.PECIVO -> CatStyle(Color(0xFFFDF0DB), Color(0xFF9A5B06), R.drawable.ph_bread)
     Category.OVOCIE_ZELENINA -> CatStyle(Color(0xFFE3F1E8), Color(0xFF1F7A4D), R.drawable.ph_carrot)
@@ -186,7 +188,43 @@ fun catStyle(c: Category): CatStyle = when (c) {
     Category.ZALOHY -> CatStyle(Color(0xFFE3F1E8), Color(0xFF2E6B47), R.drawable.ph_recycle)
     Category.ZLAVY -> CatStyle(Color(0xFFE3F1E8), Color(0xFF1F7A4D), R.drawable.ph_tag)
     Category.INE -> CatStyle(Color(0xFFEFEFEA), Color(0xFF55605A), R.drawable.ph_dots_three)
+    Category.CUSTOM1, Category.CUSTOM2, Category.CUSTOM3, Category.CUSTOM4,
+    Category.CUSTOM5, Category.CUSTOM6, Category.CUSTOM7, Category.CUSTOM8 -> {
+        val d = CustomCategories.def(c)
+        val (bg, fg) = CUSTOM_COLORS[(d?.color ?: 0).coerceIn(0, CUSTOM_COLORS.lastIndex)]
+        CatStyle(bg, fg, d?.icon?.let { CUSTOM_ICONS[it] } ?: R.drawable.ph_star)
+    }
 }
+
+/** Ikony na výber pre vlastné kategórie (Phosphor duotone, rovnaký štýl ako zvyšok aplikácie). */
+val CUSTOM_ICONS: Map<String, Int> = linkedMapOf(
+    "star" to R.drawable.ph_star, "house" to R.drawable.ph_house, "car" to R.drawable.ph_car,
+    "gift" to R.drawable.ph_gift, "heart" to R.drawable.ph_heart, "baby" to R.drawable.ph_baby,
+    "baby_carriage" to R.drawable.ph_baby_carriage, "dog" to R.drawable.ph_dog, "cat" to R.drawable.ph_cat,
+    "book" to R.drawable.ph_book_open, "school" to R.drawable.ph_graduation_cap, "game" to R.drawable.ph_game_controller,
+    "airplane" to R.drawable.ph_airplane, "train" to R.drawable.ph_train, "bus" to R.drawable.ph_bus,
+    "bicycle" to R.drawable.ph_bicycle, "coffee" to R.drawable.ph_coffee, "pizza" to R.drawable.ph_pizza,
+    "hamburger" to R.drawable.ph_hamburger, "bowl" to R.drawable.ph_bowl_food, "cake" to R.drawable.ph_cake,
+    "ice_cream" to R.drawable.ph_ice_cream, "wine" to R.drawable.ph_wine, "beer" to R.drawable.ph_beer_bottle,
+    "bag" to R.drawable.ph_shopping_bag, "cart" to R.drawable.ph_shopping_cart, "sneaker" to R.drawable.ph_sneaker,
+    "tshirt" to R.drawable.ph_t_shirt, "scissors" to R.drawable.ph_scissors, "wrench" to R.drawable.ph_wrench,
+    "lightbulb" to R.drawable.ph_lightbulb, "lightning" to R.drawable.ph_lightning, "drop" to R.drawable.ph_drop,
+    "flower" to R.drawable.ph_flower, "tree" to R.drawable.ph_tree, "sun" to R.drawable.ph_sun,
+    "umbrella" to R.drawable.ph_umbrella, "tent" to R.drawable.ph_tent, "football" to R.drawable.ph_football,
+    "barbell" to R.drawable.ph_barbell, "guitar" to R.drawable.ph_guitar, "music" to R.drawable.ph_music_note,
+    "film" to R.drawable.ph_film_strip, "ticket" to R.drawable.ph_ticket, "tooth" to R.drawable.ph_tooth,
+    "first_aid" to R.drawable.ph_first_aid, "pill" to R.drawable.ph_pill, "brush" to R.drawable.ph_paint_brush,
+    "laptop" to R.drawable.ph_laptop, "money" to R.drawable.ph_money, "piggy" to R.drawable.ph_piggy_bank,
+    "smiley" to R.drawable.ph_smiley
+)
+
+/** Farby pre vlastné kategórie (pozadie, ikona) – z palety aplikácie. */
+val CUSTOM_COLORS: List<Pair<Color, Color>> = listOf(
+    Color(0xFFE3F1E8) to Color(0xFF1F7A4D), Color(0xFFE4ECF7) to Color(0xFF2F5E9E),
+    Color(0xFFFDF0DB) to Color(0xFF9A5B06), Color(0xFFFCE7E2) to Color(0xFFB3361B),
+    Color(0xFFF5E6EC) to Color(0xFF9C3A5E), Color(0xFFEEEAF7) to Color(0xFF5B4A9E),
+    Color(0xFFE3F3F1) to Color(0xFF1D7268), Color(0xFFF3ECE3) to Color(0xFF7A5230)
+)
 
 @Composable
 fun CatBadge(c: Category, size: Int = 38) {
@@ -306,19 +344,26 @@ fun ScreenBox(contentPadding: PaddingValues, content: @Composable BoxScope.() ->
 fun SectionTitle(text: String) = SectionHeader(text)
 
 /** Skupiny kategórií vo výbere – každá kategória je práve v jednej skupine. */
-val CATEGORY_GROUPS: List<Pair<String, List<Category>>> = listOf(
-    "Potraviny a nápoje" to listOf(Category.MASO, Category.MLIECNE, Category.PECIVO, Category.OVOCIE_ZELENINA,
+val CATEGORY_GROUPS: List<Pair<String, List<Category>>> get() = listOf(
+    "Potraviny a nápoje" to listOf(Category.MASO, Category.LAHODKY, Category.MLIECNE, Category.PECIVO, Category.OVOCIE_ZELENINA,
         Category.TRVANLIVE, Category.MRAZENE_HOTOVE, Category.NAPOJE, Category.SLADKOSTI, Category.ALKOHOL, Category.TABAK),
     "Domácnosť a zdravie" to listOf(Category.DROGERIA, Category.DOMACNOST, Category.ZDRAVIE, Category.ZVIERATA),
     "Mimo domu" to listOf(Category.RESTAURACIE, Category.UBYTOVANIE, Category.VOLNY_CAS),
     "Ostatné" to listOf(Category.OBLECENIE, Category.ELEKTRONIKA, Category.SLUZBY, Category.PHM, Category.AUTO_MOTO,
-        Category.ZALOHY, Category.ZLAVY, Category.INE)
+        Category.ZALOHY, Category.ZLAVY, Category.INE),
+    "Vlastné" to CustomCategories.all.map { it.slot }
 )
 
 /** Výber kategórie pre položku – na celú obrazovku, všetky kategórie viditeľné a posúvateľné. */
 @Composable
-fun CategoryPickerDialog(itemName: String, current: Category, onDismiss: () -> Unit, onPick: (Category, Boolean) -> Unit) {
+fun CategoryPickerDialog(itemName: String, current: Category, onDismiss: () -> Unit,
+                         onCreate: ((String, String, Int) -> Category?)? = null, onPick: (Category, Boolean) -> Unit) {
     var all by remember { mutableStateOf(true) }
+    var creating by remember { mutableStateOf(false) }
+    if (creating && onCreate != null) CustomCategoryDialog(null, onDismiss = { creating = false }) { label, icon, color ->
+        creating = false
+        onCreate(label, icon, color)?.let { onPick(it, all) }
+    }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
         Column(Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.9f).clip(RoundedCornerShape(28.dp)).background(Pal.Bg)) {
@@ -342,7 +387,7 @@ fun CategoryPickerDialog(itemName: String, current: Category, onDismiss: () -> U
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                CATEGORY_GROUPS.forEach { (title, cats) ->
+                CATEGORY_GROUPS.filter { (t, c) -> c.isNotEmpty() || (t == "Vlastné" && onCreate != null) }.forEach { (title, cats) ->
                     item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                         Text(title, Modifier.padding(top = 8.dp, bottom = 2.dp), fontSize = 14.sp,
                             fontWeight = FontWeight.ExtraBold, color = Pal.Muted)
@@ -361,8 +406,83 @@ fun CategoryPickerDialog(itemName: String, current: Category, onDismiss: () -> U
                             }
                         }
                     }
+                    if (title == "Vlastné" && onCreate != null && CustomCategories.all.size < 8) item {
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Pal.GreenSoft)
+                            .clickable { creating = true }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(Pal.Card), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Add, null, tint = Pal.Green, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Text("Nová kategória", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Pal.Green)
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+
+/** Vytvorenie / úprava vlastnej kategórie: názov, ikona, farba. [existing] = null pre novú. */
+@Composable
+fun CustomCategoryDialog(existing: CustomCategories.Def?, onDismiss: () -> Unit, onDelete: (() -> Unit)? = null,
+                         onSave: (String, String, Int) -> Unit) {
+    var name by remember { mutableStateOf(existing?.label ?: "") }
+    var icon by remember { mutableStateOf(existing?.icon ?: "star") }
+    var color by remember { mutableStateOf(existing?.color ?: 0) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    val (bg, fg) = CUSTOM_COLORS[color.coerceIn(0, CUSTOM_COLORS.lastIndex)]
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.88f).clip(RoundedCornerShape(28.dp)).background(Pal.Card).padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(bg), contentAlignment = Alignment.Center) {
+                    Icon(painterResource(CUSTOM_ICONS[icon] ?: R.drawable.ph_star), null, tint = fg, modifier = Modifier.size(28.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Text(if (existing == null) "Nová kategória" else "Upraviť kategóriu", Modifier.weight(1f),
+                    fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Zavrieť") }
+            }
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(name, { name = it.take(30) }, label = { Text("Názov (napr. Deti, Darčeky, Chalupa)") },
+                singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+            Spacer(Modifier.height(12.dp))
+            Text("Farba", fontSize = 13.sp, color = Pal.Muted, fontWeight = FontWeight.SemiBold)
+            Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CUSTOM_COLORS.forEachIndexed { i, (b, f) ->
+                    Box(Modifier.size(32.dp).clip(CircleShape).background(f).clickable { color = i }
+                        .padding(if (i == color) 8.dp else 0.dp).clip(CircleShape).background(if (i == color) b else f))
+                }
+            }
+            Text("Ikona", fontSize = 13.sp, color = Pal.Muted, fontWeight = FontWeight.SemiBold)
+            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(52.dp),
+                modifier = Modifier.weight(1f).padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                CUSTOM_ICONS.forEach { (key, res) ->
+                    item {
+                        val sel = key == icon
+                        Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(if (sel) bg else Pal.Bg)
+                            .clickable { icon = key }, contentAlignment = Alignment.Center) {
+                            Icon(painterResource(res), key, tint = if (sel) fg else Pal.Muted, modifier = Modifier.size(26.dp))
+                        }
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (onDelete != null) TextButton(onClick = { confirmDelete = true }) { Text("Zmazať", color = Pal.Red) }
+                Spacer(Modifier.weight(1f))
+                Button(onClick = { onSave(name.trim(), icon, color) }, enabled = name.isNotBlank(),
+                    shape = RoundedCornerShape(14.dp)) { Text("Uložiť") }
+            }
+        }
+    }
+    if (confirmDelete && onDelete != null) AlertDialog(
+        onDismissRequest = { confirmDelete = false }, containerColor = Pal.Card,
+        title = { Text("Zmazať kategóriu?") },
+        text = { Text("Položky z tejto kategórie sa presunú do „Iné“.") },
+        confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("Zmazať", color = Pal.Red) } },
+        dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Zrušiť") } })
 }

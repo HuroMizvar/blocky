@@ -210,3 +210,31 @@ UNITS = {
 from vocab2 import X as _X
 for _k, _v in _X.items():
     V[_k] = list(dict.fromkeys(V[_k] + _v))
+
+# --- Lahôdky a údeniny (nová kategória): presun z mäsa a hotových jedál + nové vzory ---
+import re as _re
+_deli = _re.compile(r"(šunk|salám|salam|klobás|klobas|párk|parky|párok|špekáč|slanin|bôčik údený|paštét|tlačenk|jaternic|krvavnič|hurka|"
+                    r"debrecín|mortadel|kabanos|údené|údená|údený|chorizo|pepperoni|prosciutto|pancetta|bresaola|fuet|serrano|uherák|herkules|"
+                    r"poličan|čabajk|spišské|frankfurt|bratwurst|wiener|nárez|údenin|leberk|pečienkový|sekaná|oškvark|škvark|"
+                    r"šalát|nátierk|pomazánk|hummus|tzatziki|coleslaw|krab tyčinky|surimi|rybí šalát|rybacia paštéta)", _re.I)
+V["LAHODKY"] = []
+for _src in ("MASO", "MRAZENE_HOTOVE"):
+    keep = []
+    for _x in V[_src]:
+        if _deli.search(_x) and not _re.search(r"pizza|mrazen|ryby|filé|losos steak", _x, _re.I):
+            V["LAHODKY"].append(_x)
+        else:
+            keep.append(_x)
+    V[_src] = keep
+V["LAHODKY"] += """šunka nárezová|šunka kuracia plátky|šunka morčacia plátky|šunka od kosti krájaná|saláma krájaná|saláma plátky
+|salám čajový|salám vysočina|jemná saláma|jemná saláma štandard|saláma štandard|lahôdkový salám|klobása čabajská|klobása paprikáš
+|párky hovädzie|párky z kuracieho mäsa|párky v črievku|šunkový nárez|mäsový nárez|obložená misa|chlebíček so šunkou|obložený chlebíček
+|vlašský šalát|zemiakový šalát|cestovinový šalát|šalát s tuniakom|šalát s kuracím mäsom|pochúťkový šalát|treskový šalát|
+|šalát majonézový|vajíčkový šalát|hotový šalát|lahôdkový šalát|zeleninový šalát s majonézou|bryndzová nátierka|oškvarková nátierka
+|škvarková nátierka|vajíčková nátierka|tuniaková nátierka|cesnaková nátierka|syrová nátierka lahôdková|pečeňová nátierka
+|mäsová nátierka|lunter nátierka|hummus klasický|pomazánka|pomazánka šunková|paštéta bravčová|paštéta kuracia|paštéta s hríbmi
+|pečeňový syr|sekaná pečienka|tlačenka bravčová|huspenina|aspik|kuracie rolky|šunková rolka|syrovo-šunková rolka|lahôdky
+|delikatesy|olivy plnené lahôdka|sušené paradajky v oleji|antipasti|nakladaná zelenina lahôdka|tapas mix|fuet saláma|chorizo plátky
+|prosciutto crudo|serrano šunka plátky|parmská šunka|salám milano|pikantná saláma|kabanos bravčový|slanina plátky|údená krkovička plátky""".replace("\n","").split("|")
+V["LAHODKY"] = [x.strip() for x in dict.fromkeys(V["LAHODKY"]) if x.strip()]
+UNITS["LAHODKY"] = ["100g", "150g", "200g", "250g", "120g", "75g", "300g", "kg", "váž.", "1ks", "0,1kg", "400g"]

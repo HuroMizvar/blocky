@@ -15,7 +15,7 @@ Milkshake čokoláda|MLIECNE
 Káv. nápoj Cappu.|NAPOJE
 Tvarohový tyčinka|MLIECNE
 Croissant nugátový|PECIVO
-Fuet saláma 170g|MASO
+Fuet saláma 170g|LAHODKY
 štrúdľove cesto 300g|MRAZENE_HOTOVE
 Movino Ca.Sauv.0,75l|ALKOHOL
 Ciabatta 300 g|PECIVO

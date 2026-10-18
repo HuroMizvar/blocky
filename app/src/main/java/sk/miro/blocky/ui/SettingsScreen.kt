@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -25,21 +26,42 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onExport: () -> Unit) 
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Späť") } }
         )
     }) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
-            .padding(bottom = 32.dp)) {
-            HouseholdSection(vm)
-            HorizontalDivider(Modifier.padding(top = 20.dp))
-            AiSection(vm)
-            HorizontalDivider(Modifier.padding(top = 20.dp))
-            PrivacySection(vm, onExport, onBack)
-            HorizontalDivider(Modifier.padding(top = 20.dp))
-            UpdateSection(vm)
-            HorizontalDivider(Modifier.padding(top = 20.dp))
-            // nástroje na testovanie len vo verzii z GitHubu (nie v Obchode Play)
-            if (sk.miro.blocky.BuildConfig.DEBUG) {
-                TestSection(vm)
-                HorizontalDivider(Modifier.padding(top = 20.dp))
-                EndpointSection(vm)
+        val tabs = listOf("Domácnosť", "AI", "Aktualizácie", "Súkromie a dáta")
+        var tab by rememberSaveable { mutableIntStateOf(0) }
+        val update by vm.update.collectAsState()
+        val hasUpdate = update is UpdateUi.Available || update is UpdateUi.ReadyToInstall
+        Column(Modifier.fillMaxSize().padding(pad)) {
+            ScrollableTabRow(selectedTabIndex = tab, containerColor = Pal.Bg, contentColor = Pal.Ink, edgePadding = 12.dp,
+                indicator = { pos ->
+                    with(TabRowDefaults) { SecondaryIndicator(Modifier.tabIndicatorOffset(pos[tab]), color = Pal.Green) }
+                }) {
+                tabs.forEachIndexed { i, t ->
+                    Tab(selected = tab == i, onClick = { tab = i },
+                        selectedContentColor = Pal.Ink, unselectedContentColor = Pal.Muted,
+                        text = {
+                            BadgedBox(badge = { if (i == 2 && hasUpdate) Badge(containerColor = Pal.Green) }) {
+                                Text(t, fontWeight = if (tab == i) FontWeight.Bold else FontWeight.Medium)
+                            }
+                        })
+                }
+            }
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
+                .padding(bottom = 32.dp)) {
+                when (tab) {
+                    0 -> HouseholdSection(vm)
+                    1 -> AiSection(vm)
+                    2 -> {
+                        UpdateSection(vm)
+                        // nástroje na testovanie len vo verzii z GitHubu (nie v Obchode Play)
+                        if (sk.miro.blocky.BuildConfig.DEBUG) {
+                            HorizontalDivider(Modifier.padding(top = 20.dp))
+                            TestSection(vm)
+                            HorizontalDivider(Modifier.padding(top = 20.dp))
+                            EndpointSection(vm)
+                        }
+                    }
+                    else -> PrivacySection(vm, onExport, onBack)
+                }
             }
         }
     }

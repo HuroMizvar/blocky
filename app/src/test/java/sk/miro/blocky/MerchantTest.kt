@@ -18,7 +18,7 @@ class MerchantTest {
         assertEquals(MerchantType.GROCERY, MerchantResolver.resolve(lidl))
         assertEquals(Category.ALKOHOL, Categorizer.categorize("Víno Tokaj 0,75l", lidl, 599))
         assertEquals(Category.MRAZENE_HOTOVE, Categorizer.categorize("Pizza šunková", lidl, 299))
-        assertEquals(Category.MASO, Categorizer.categorize("Saláma Inovecká", lidl, 189))
+        assertEquals(Category.LAHODKY, Categorizer.categorize("Saláma Inovecká", lidl, 189))
     }
 
     @Test fun merchantTypes() {

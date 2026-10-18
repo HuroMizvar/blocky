@@ -41,6 +41,9 @@ import androidx.compose.ui.graphics.Color
 
 import sk.miro.blocky.domain.Analytics
 import sk.miro.blocky.domain.Category
+import sk.miro.blocky.domain.BudgetPlanner
+import sk.miro.blocky.domain.CustomCategories
+import androidx.compose.material.icons.filled.AutoAwesome
 import sk.miro.blocky.domain.MerchantType
 import java.time.Instant
 import java.time.ZoneId
@@ -78,9 +81,21 @@ fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Lo
     val all by vm.receiptList.collectAsState()
     val pending by vm.openPending.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
-    val q = sk.miro.blocky.domain.Categorizer.normalize(query)
-    val receipts = if (q.isBlank()) all else all.filter {
-        sk.miro.blocky.domain.Categorizer.normalize(it.receipt.merchantName).contains(q)
+    val q = sk.miro.blocky.domain.Categorizer.normalize(query).trim()
+    val itemRows by vm.allRows.collectAsState()
+    // vyhľadávanie podľa obchodu aj podľa položiek (všetky slová dotazu musia sedieť)
+    val words = remember(q) { q.split(' ').filter { it.isNotBlank() } }
+    val hits = remember(q, itemRows) {
+        if (words.isEmpty()) emptyMap()
+        else itemRows.filter { r ->
+            val n = r.normName.ifEmpty { sk.miro.blocky.domain.Categorizer.normalize(r.name) }
+            words.all { w -> n.contains(w) }
+        }
+            .groupBy { it.receiptDbId }
+    }
+    val receipts = if (words.isEmpty()) all else all.filter {
+        val m = sk.miro.blocky.domain.Categorizer.normalize(it.receipt.merchantName)
+        words.all { w -> m.contains(w) } || hits.containsKey(it.receipt.id)
     }
     val grouped = receipts.groupBy { Analytics.monthOf(it.receipt.issuedAt) }
     LazyColumn(Modifier.fillMaxSize().background(Pal.Bg), contentPadding = pad(contentPadding)) {
@@ -94,7 +109,7 @@ fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Lo
             }
         }
         if (all.size > 3) item {
-            // vyhľadávanie podľa obchodu
+            // vyhľadávanie podľa obchodu alebo položky
             Row(Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(16.dp)).background(Pal.Card)
                 .padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Search, null, tint = Pal.Muted, modifier = Modifier.size(20.dp))
@@ -103,7 +118,7 @@ fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Lo
                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, color = Pal.Ink, fontFamily = Jakarta),
                     modifier = Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 14.dp),
                     decorationBox = { inner ->
-                        if (query.isEmpty()) Text("Hľadať obchod…", fontSize = 15.sp, color = Pal.Faint)
+                        if (query.isEmpty()) Text("Hľadať obchod alebo položku…", fontSize = 15.sp, color = Pal.Faint)
                         inner()
                     })
                 if (query.isNotEmpty()) IconButton(onClick = { query = "" }) {
@@ -112,8 +127,11 @@ fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Lo
             }
         }
         if (q.isNotBlank()) item {
-            Text(if (receipts.isEmpty()) "Nič sa nenašlo." else "Nájdené: ${receipts.size} · spolu ${eur(receipts.sumOf { it.counted })}",
+            Text(if (receipts.isEmpty()) "Nič sa nenašlo." else "Nájdené: ${receipts.size} ${receiptWord(receipts.size)} · spolu ${eur(receipts.sumOf { it.counted })}",
                 Modifier.padding(top = 10.dp, start = 4.dp), fontSize = 13.sp, color = Pal.Muted, fontWeight = FontWeight.SemiBold)
+            val itemHits = hits.values.flatten()
+            if (itemHits.isNotEmpty()) Text("Položky „$query“: ${itemHits.size}× · spolu ${eur(itemHits.sumOf { it.priceCents })}",
+                Modifier.padding(top = 2.dp, start = 4.dp), fontSize = 13.sp, color = Pal.Green, fontWeight = FontWeight.Bold)
         }
         if (pending.isNotEmpty()) {
             item { SectionHeader("Čaká na načítanie (${pending.size})") }
@@ -165,7 +183,7 @@ fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Lo
                     BCard(Modifier.padding(bottom = 10.dp), padding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)) {
                         wList.forEachIndexed { i, r ->
                             if (i > 0) HorizontalDivider(Modifier.padding(start = 62.dp, end = 10.dp), color = Pal.Track)
-                            ReceiptRow(r) { onOpen(r.receipt.id) }
+                            ReceiptRow(r, hits[r.receipt.id].orEmpty()) { onOpen(r.receipt.id) }
                         }
                     }
                 }
@@ -178,7 +196,7 @@ fun receiptWord(n: Int) = when { n == 1 -> "bloček"; n in 2..4 -> "bločky"; el
 private fun itemWord(n: Int) = when { n == 1 -> "položka"; n in 2..4 -> "položky"; else -> "položiek" }
 
 @Composable
-private fun ReceiptRow(row: ReceiptListRow, onClick: () -> Unit) {
+private fun ReceiptRow(row: ReceiptListRow, hits: List<sk.miro.blocky.data.ItemRow> = emptyList(), onClick: () -> Unit) {
     val r = row.receipt
     val edited = row.editedCount > 0
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(16.dp))
@@ -202,6 +220,12 @@ private fun ReceiptRow(row: ReceiptListRow, onClick: () -> Unit) {
                 }
             }
             if (edited) EditedChip(Modifier.padding(top = 4.dp))
+            // nájdené položky pri vyhľadávaní
+            hits.take(3).forEach { h ->
+                Text("• ${h.name} · ${eur(h.priceCents)}", fontSize = 12.sp, color = Pal.Green, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+            }
+            if (hits.size > 3) Text("+ ďalšie ${hits.size - 3}", fontSize = 11.sp, color = Pal.Muted)
         }
         Spacer(Modifier.width(8.dp))
         Column(horizontalAlignment = Alignment.End) {
@@ -370,7 +394,7 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
     }
 
     pickingFor?.let { item ->
-        CategoryPickerDialog(item.name, Category.fromName(item.category), onDismiss = { pickingFor = null }) { c, all ->
+        CategoryPickerDialog(item.name, Category.fromName(item.category), onDismiss = { pickingFor = null }, onCreate = vm::createCustomCategory) { c, all ->
             vm.recategorize(item.id, item.normName, c, all); pickingFor = null
         }
     }
@@ -455,21 +479,128 @@ private fun fmtQty(q: Double): String =
 @Composable
 fun BudgetsScreen(vm: MainViewModel, contentPadding: PaddingValues, actions: @Composable RowScope.() -> Unit) {
     val st by vm.state.collectAsState()
+    val cats by vm.catsVersion.collectAsState()   // prekresliť pri zmene vlastných kategórií
     val spent = st.report?.categories?.associate { it.category to it.cents }.orEmpty()
+    var proposal by remember { mutableStateOf<List<BudgetPlanner.Suggestion>?>(null) }
+    var editCustom by remember { mutableStateOf<CustomCategories.Def?>(null) }
+    var newCustom by remember { mutableStateOf(false) }
     LazyColumn(Modifier.fillMaxSize().background(Pal.Bg), contentPadding = pad(contentPadding)) {
         item { ScreenTitle("Rozpočty", actions = actions) }
+        item {
+            BCard(Modifier.padding(bottom = 12.dp), color = Pal.Ink) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text("Automatické rozpočty", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Spacer(Modifier.height(6.dp))
+                Text("Navrhnem limity podľa celej vašej histórie – o niečo nižšie, ako zvyčajne míňate, aby ste ušetrili.",
+                    color = Color(0xFFD7DDD9), fontSize = 13.sp)
+                Spacer(Modifier.height(12.dp))
+                Button(onClick = { proposal = vm.budgetSuggestions() }, shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Pal.Green, contentColor = Color.White)) {
+                    Text("Nastaviť podľa môjho míňania", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
         item {
             Text("Mesačný limit na kategóriu. Prázdne pole = bez limitu. Prekročenie sa ukáže v tipoch.",
                 Modifier.padding(bottom = 12.dp), fontSize = 13.sp, color = Pal.Muted)
         }
         item {
             BCard(padding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
-                Category.entries.filter { it != Category.ZLAVY && it != Category.ZALOHY }.forEach { c ->
-                    BudgetRow(c, st.budgets[c], spent[c] ?: 0L) { vm.setBudget(c, it) }
+                Category.visible.filter { it != Category.ZLAVY && it != Category.ZALOHY }.forEach { c ->
+                    key(c, cats) { BudgetRow(c, st.budgets[c], spent[c] ?: 0L) { vm.setBudget(c, it) } }
+                }
+            }
+        }
+        item {
+            Spacer(Modifier.height(20.dp))
+            SectionTitle("Vlastné kategórie")
+            BCard(padding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
+                val defs = CustomCategories.all
+                if (defs.isEmpty()) Text("Zatiaľ žiadne. Vytvorte si napr. „Deti“, „Darčeky“ alebo „Chata“.",
+                    Modifier.padding(vertical = 10.dp), fontSize = 13.sp, color = Pal.Muted)
+                defs.forEach { d ->
+                    Row(Modifier.fillMaxWidth().clickable { editCustom = d }.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        CatBadge(d.slot, 34); Spacer(Modifier.width(12.dp))
+                        Text(d.label, Modifier.weight(1f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Icon(Icons.Default.Edit, "Upraviť", tint = Pal.Muted, modifier = Modifier.size(20.dp))
+                    }
+                }
+                if (defs.size < 8) TextButton(onClick = { newCustom = true }) {
+                    Icon(Icons.Default.Add, null, Modifier.size(18.dp), tint = Pal.Green); Spacer(Modifier.width(6.dp))
+                    Text("Nová kategória", color = Pal.Green, fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
+
+    proposal?.let { list ->
+        AutoBudgetDialog(list, st.budgets, onDismiss = { proposal = null }) { chosen ->
+            vm.applyBudgets(chosen); proposal = null
+        }
+    }
+    editCustom?.let { d ->
+        CustomCategoryDialog(d, onDismiss = { editCustom = null },
+            onDelete = { vm.deleteCustomCategory(d.slot); editCustom = null }) { name, icon, color ->
+            vm.updateCustomCategory(d.slot, name, icon, color); editCustom = null
+        }
+    }
+    if (newCustom) CustomCategoryDialog(null, onDismiss = { newCustom = false }) { name, icon, color ->
+        vm.createCustomCategory(name, icon, color); newCustom = false
+    }
+}
+
+/** Návrh automatických rozpočtov – používateľ vidí priemer, návrh a odhad úspory a môže kategórie odznačiť. */
+@Composable
+private fun AutoBudgetDialog(list: List<BudgetPlanner.Suggestion>, current: Map<Category, Long>,
+                             onDismiss: () -> Unit, onApply: (List<BudgetPlanner.Suggestion>) -> Unit) {
+    val chosen = remember(list) { mutableStateMapOf<Category, Boolean>().apply { list.forEach { put(it.category, true) } } }
+    val saving = list.filter { chosen[it.category] == true }.sumOf { it.savingCents }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Pal.Card,
+        title = { Text("Návrh rozpočtov", fontWeight = FontWeight.Bold) },
+        text = {
+            if (list.isEmpty()) Text("Na návrh je zatiaľ málo údajov. Skenujte bločky aspoň týždeň, potom to skúste znova.")
+            else Column {
+                val months = list.maxOf { it.months }
+                Text(if (months == 0) "Odhad z tohto mesiaca (zatiaľ nemáte celý mesiac)."
+                     else "Z histórie $months ${if (months == 1) "mesiaca" else "mesiacov"}. Priemer → návrh na mesiac.",
+                    fontSize = 13.sp, color = Pal.Muted)
+                Spacer(Modifier.height(8.dp))
+                Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState())) {
+                    list.forEach { s ->
+                        Row(Modifier.fillMaxWidth().clickable { chosen[s.category] = chosen[s.category] != true }
+                            .padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(chosen[s.category] == true, { chosen[s.category] = it },
+                                colors = CheckboxDefaults.colors(checkedColor = Pal.Green))
+                            CatBadge(s.category, 28); Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(s.category.label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                Text("priemer ${eur(s.averageCents)}" +
+                                    (current[s.category]?.let { " · teraz ${eur(it)}" } ?: ""),
+                                    fontSize = 12.sp, color = Pal.Muted)
+                            }
+                            Text(eur(s.budgetCents), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Pal.Ink)
+                        }
+                    }
+                }
+                if (saving > 0) {
+                    Spacer(Modifier.height(10.dp))
+                    Text("Ak rozpočty dodržíte, ušetríte asi ${eur(saving)} mesačne (${eur(saving * 12)} ročne).",
+                        fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Pal.Green)
+                }
+            }
+        },
+        confirmButton = {
+            if (list.isNotEmpty()) TextButton(enabled = chosen.values.any { it },
+                onClick = { onApply(list.filter { chosen[it.category] == true }) }) { Text("Použiť") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Zrušiť") } }
+    )
 }
 
 @Composable
@@ -521,7 +652,7 @@ fun ManualEntryDialog(onDismiss: () -> Unit, title: String = "Ručný záznam", 
                         CatBadge(cat, 24); Spacer(Modifier.width(8.dp)); Text(cat.label)
                     }
                     DropdownMenu(expanded, { expanded = false }) {
-                        Category.entries.forEach { c ->
+                        Category.visible.forEach { c ->
                             DropdownMenuItem(text = { Text(c.label) }, leadingIcon = { CatBadge(c, 24) },
                                 onClick = { cat = c; expanded = false })
                         }
