@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import sk.miro.blocky.domain.Category
 import sk.miro.blocky.domain.HouseholdProfile
+import sk.miro.blocky.domain.BudgetState
+import sk.miro.blocky.domain.Period
 import sk.miro.blocky.domain.MerchantType
 import sk.miro.blocky.domain.Recommendation
 import java.time.LocalDate
@@ -84,7 +86,7 @@ fun ReportScreen(
 
         item {
             val budgetSum = st.budgets.values.sum()
-            val isCurrent = r.month == YearMonth.now()
+            val isCurrent = r.month == Period.current()
             BCard(Modifier.padding(top = 12.dp)) {
                 Text(if (isCurrent) "Minuté tento mesiac (bez záloh)" else "Minuté v mesiaci (bez záloh)", fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold, color = Pal.Muted)
@@ -103,7 +105,7 @@ fun ReportScreen(
                     ProgressTrack(r.totalCents.toFloat() / budgetSum, if (r.totalCents > budgetSum) Pal.Red else Pal.Green, height = 10, track = Pal.Line)
                     Spacer(Modifier.height(8.dp))
                     val left = budgetSum - r.totalCents
-                    val days = if (isCurrent) r.month.lengthOfMonth() - LocalDate.now().dayOfMonth else 0
+                    val days = if (isCurrent) Period.length(r.month) - Period.dayIndex(r.month, LocalDate.now()) else 0
                     Row {
                         Text("Rozpočet ${eur(budgetSum)}", Modifier.weight(1f), fontSize = 13.sp, color = Pal.Muted)
                         Text(if (left >= 0) "zostáva ${eur(left)}" + (if (days > 0) " · $days dní" else "")
@@ -119,8 +121,8 @@ fun ReportScreen(
 
         // rýchle údaje
         item {
-            val isCurrent = r.month == YearMonth.now()
-            val days = if (isCurrent) LocalDate.now().dayOfMonth else r.month.lengthOfMonth()
+            val isCurrent = r.month == Period.current()
+            val days = if (isCurrent) Period.dayIndex(r.month, LocalDate.now()) else Period.length(r.month)
             Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatTile("Bločky", "${r.receiptCount}", Modifier.weight(1f))
                 StatTile("Priemerný nákup", eur(r.totalCents / r.receiptCount), Modifier.weight(1f))
@@ -145,12 +147,18 @@ fun ReportScreen(
                 Spacer(Modifier.height(6.dp))
                 val max = cats.maxOfOrNull { maxOf(it.cents, it.budgetCents ?: 0L) } ?: 1L
                 cats.take(limit).forEach { c ->
+                    val bs = c.budgetState
                     ListRow(
                         leading = { CatBadge(c.category, 40) },
                         title = c.category.label,
-                        subtitle = "${Math.round(c.share * 100)} % výdavkov" + (c.budgetCents?.let { " · rozpočet ${eur(it)}" } ?: ""),
+                        subtitle = when (bs) {
+                            BudgetState.OVER -> "prekročený rozpočet ${eur(c.budgetCents ?: 0)}"
+                            BudgetState.RISK -> "hrozí prekročenie · rozpočet ${eur(c.budgetCents ?: 0)}"
+                            else -> "${Math.round(c.share * 100)} % výdavkov" + (c.budgetCents?.let { " · rozpočet ${eur(it)}" } ?: "")
+                        },
                         amount = c.cents,
-                        amountColor = if (c.budgetCents != null && c.cents > c.budgetCents) Pal.Red else Pal.Ink,
+                        amountColor = when (bs) { BudgetState.OVER -> Pal.Red; BudgetState.RISK -> Pal.Amber; else -> Pal.Ink },
+                        highlight = budgetHighlight(bs),
                         trend = deltaPct(c.cents, c.avg3Cents),
                         bar = c.cents.toFloat() / max to catStyle(c.category).fg,
                         onClick = { onOpenItems("cat", c.category.name, r.month) }
@@ -254,11 +262,13 @@ private fun ExpandableCard(total: Int, initial: Int, what: String, content: @Com
 @Composable
 private fun ListRow(
     leading: @Composable () -> Unit, title: String, subtitle: String, amount: Long,
-    amountColor: Color = Pal.Ink, trend: Int? = null, bar: Pair<Float, Color>? = null, onClick: (() -> Unit)? = null
+    amountColor: Color = Pal.Ink, trend: Int? = null, bar: Pair<Float, Color>? = null, onClick: (() -> Unit)? = null,
+    highlight: Color? = null
 ) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+        .then(if (highlight != null) Modifier.background(highlight) else Modifier)
         .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-        .padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        .padding(vertical = 10.dp, horizontal = if (highlight != null) 8.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) {
         leading()
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -305,21 +315,6 @@ fun RecommendationsScreen(vm: MainViewModel, contentPadding: PaddingValues, acti
     LazyColumn(Modifier.fillMaxSize().background(Pal.Bg), contentPadding = listPadding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { MonthSwitcher(st.month, st.months, vm::selectMonth, actions) }
-        item {
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Card)
-                .clickable { editProfile = true }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(40.dp).clip(CircleShape).background(Pal.GreenSoft), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Groups, null, tint = Pal.Green, modifier = Modifier.size(22.dp))
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Moja domácnosť", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text(if (st.profile.filled) st.profile.summary() else "Vyplňte pre presnejšie tipy",
-                        fontSize = 13.sp, color = if (st.profile.filled) Pal.Muted else Pal.Green)
-                }
-                Text(if (st.profile.filled) "Upraviť" else "Vyplniť", color = Pal.Green, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
-        }
         item {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Ink)
                 .clickable { aiOpen = true }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -405,19 +400,19 @@ fun ProfileDialog(initial: HouseholdProfile, onDismiss: () -> Unit, onSave: (Hou
                 Text("Text „O mne“ sa použije len v AI analýze – a len ak ju sami odošlete.",
                     fontSize = 12.sp, color = Pal.Muted)
                 Text("Podľa toho upravím tipy, napr. potraviny na osobu, s deťmi vyšší limit na sladkosti, " +
-                    "pri aute nehlásim tankovanie ako nárast. Údaje zostávajú len v tomto telefóne.",
+                    "pri aute nehlásim tankovanie ako nárast.",
                     fontSize = 12.sp, color = Pal.Muted, lineHeight = 17.sp)
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(HouseholdProfile(people, kids, carer, pets, car, note.trim())) }) { Text("Uložiť", fontWeight = FontWeight.Bold) }
+            TextButton(onClick = { onSave(initial.copy(people = people, kids = kids, carer = carer, pets = pets, car = car, note = note.trim())) }) { Text("Uložiť", fontWeight = FontWeight.Bold) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Zrušiť") } }
     )
 }
 
 @Composable
-private fun Stepper(label: String, value: Int, min: Int, max: Int, onChange: (Int) -> Unit) {
+internal fun Stepper(label: String, value: Int, min: Int, max: Int, onChange: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         OutlinedIconButton(onClick = { if (value > min) onChange(value - 1) }, enabled = value > min, modifier = Modifier.size(36.dp)) {

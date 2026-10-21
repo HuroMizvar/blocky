@@ -15,8 +15,22 @@ data class CategoryStat(
     val prevCents: Long,
     /** priemer predchádzajúcich (max. 3) mesiacov s dátami; null = bez histórie */
     val avg3Cents: Long?,
-    val budgetCents: Long?
-)
+    val budgetCents: Long?,
+    /** odhad na celé obdobie pri súčasnom tempe (len bežiace obdobie) */
+    val projectedCents: Long? = null
+) {
+    /** stav rozpočtu: prekročený / hrozí prekročenie / v poriadku */
+    val budgetState: BudgetState get() {
+        val b = budgetCents ?: return BudgetState.NONE
+        return when {
+            cents > b -> BudgetState.OVER
+            (projectedCents ?: 0) > b -> BudgetState.RISK
+            else -> BudgetState.OK
+        }
+    }
+}
+
+enum class BudgetState { NONE, OK, RISK, OVER }
 
 data class MerchantStat(val name: String, val cents: Long, val visits: Int, val type: MerchantType = MerchantType.UNKNOWN,
                         /** kategória s najvyššou sumou (ikona pri ručných záznamoch a neznámych prevádzkach) */
@@ -33,7 +47,9 @@ data class HouseholdProfile(
     val pets: Boolean = false,
     val car: Boolean = false,
     /** voľný popis „o mne“ – použije sa LEN v texte pre AI analýzu, ktorý používateľ sám odošle */
-    val note: String = ""
+    val note: String = "",
+    /** deň výplaty – od neho sa počíta rozpočtový mesiac (1 = kalendárny mesiac) */
+    val payDay: Int = 1
 ) {
     val filled: Boolean get() = people > 0
     fun summary(): String = if (!filled) "Nevyplnené" else buildList {
@@ -78,8 +94,9 @@ data class Recommendation(
 object Analytics {
     private val zone: ZoneId get() = ZoneId.systemDefault()
 
+    /** rozpočtové obdobie (mesiac podľa dňa výplaty, viď [Period]) */
     fun monthOf(epochMillis: Long): YearMonth =
-        YearMonth.from(Instant.ofEpochMilli(epochMillis).atZone(zone))
+        Period.of(Instant.ofEpochMilli(epochMillis).atZone(zone).toLocalDate())
 
     private fun dateOf(epochMillis: Long): LocalDate = Instant.ofEpochMilli(epochMillis).atZone(zone).toLocalDate()
 
@@ -136,12 +153,16 @@ object Analytics {
                     list.sumOf { it.priceCents }, list.sumOf { it.quantity }, list.size)
             }.sortedByDescending { it.cents }.take(15)
 
-        val projected = if (month == YearMonth.from(today) && today.dayOfMonth < month.lengthOfMonth() && total > 0)
-            (total.toDouble() / today.dayOfMonth * month.lengthOfMonth()).roundToLong() else null
+        val dayIdx = Period.dayIndex(month, today)
+        val len = Period.length(month)
+        val projected = if (month == Period.of(today) && dayIdx < len && total > 0)
+            (total.toDouble() / dayIdx * len).roundToLong() else null
+        val categoriesP = if (projected == null) categories
+            else categories.map { it.copy(projectedCents = (it.cents.toDouble() / dayIdx * len).roundToLong()) }
 
         val food = cur.filter { Category.fromName(it.category) in Category.FOOD }.sumOf { it.priceCents }
         return MonthReport(month, total, prev.sumOf { it.priceCents }, avg3Total,
-            allCur.map { it.receiptDbId }.distinct().size, categories, merchants, topItems, projected,
+            allCur.map { it.receiptDbId }.distinct().size, categoriesP, merchants, topItems, projected,
             depositPaid, depositReturned, food)
     }
 
@@ -156,7 +177,6 @@ object Analytics {
         val cur = rows.filter { monthOf(it.issuedAt) == month }
         if (cur.isEmpty()) return emptyList()
         val skip = setOf(Category.ZALOHY, Category.ZLAVY)
-        val isCurrent = month == YearMonth.from(today)
 
         // 1) Rozpočty
         for (c in report.categories) {
@@ -164,11 +184,8 @@ object Analytics {
             if (c.cents > b) {
                 out += Recommendation(Severity.HIGH, "Prekročený rozpočet: ${c.category.label}",
                     "Minuté ${eur(c.cents)} pri rozpočte ${eur(b)} (+${eur(c.cents - b)}).", c.cents - b)
-            } else if (isCurrent && report.projectedTotalCents != null && report.totalCents > 0) {
-                val proj = (c.cents.toDouble() * report.projectedTotalCents / report.totalCents).roundToLong()
-                if (proj > b) out += Recommendation(Severity.MEDIUM, "Hrozí prekročenie: ${c.category.label}",
-                    "Pri súčasnom tempe skončíte na ~${eur(proj)} (rozpočet ${eur(b)}). Projekcia je lineárny odhad.")
             }
+            // hroziace prekročenie sa netipuje – kategória sa označí oranžovou v Prehľade a Rozpočtoch
         }
 
         // Kategórie, ktorých vyššie výdavky profil domácnosti vysvetľuje → nehlásiť ako nárast.
@@ -227,9 +244,10 @@ object Analytics {
                 "Odhad podľa vašich nákupov za 90 dní.", c.saving)
 
         // 5) Zdraženie toho istého produktu v tom istom obchode (okno 180 dní)
-        val since = month.atEndOfMonth().minusDays(180)
+        val periodEnd = Period.end(month)
+        val since = periodEnd.minusDays(180)
         val raises = rows.filter { dateOf(it.issuedAt).isAfter(since) && it.priceCents > 0 && it.quantity > 0 &&
-                !dateOf(it.issuedAt).isAfter(month.atEndOfMonth()) }
+                !dateOf(it.issuedAt).isAfter(periodEnd) }
             .groupBy { it.normName to it.merchantName }
             .mapNotNull { (key, l) ->
                 val sorted = l.sortedBy { it.issuedAt }

@@ -382,6 +382,21 @@ abstract class BlockyDao {
     @Query("DELETE FROM category_rules WHERE category = :category")
     abstract suspend fun deleteRulesFor(category: String)
 
+    // presun kategórie (zlúčenie vlastných kategórií pri vstupe do domácnosti)
+    @Query("UPDATE items SET category = :to WHERE category = :from")
+    abstract suspend fun moveItemsCategory(from: String, to: String)
+    @Query("UPDATE category_rules SET category = :to WHERE category = :from")
+    abstract suspend fun moveRulesCategory(from: String, to: String)
+    @Query("UPDATE ai_examples SET category = :to WHERE category = :from")
+    abstract suspend fun moveAiCategory(from: String, to: String)
+    @Query("UPDATE OR REPLACE budgets SET category = :to WHERE category = :from")
+    abstract suspend fun moveBudgetCategory(from: String, to: String)
+
+    @Transaction
+    open suspend fun moveCategory(from: String, to: String) {
+        moveItemsCategory(from, to); moveRulesCategory(from, to); moveAiCategory(from, to); moveBudgetCategory(from, to)
+    }
+
     @Query("DELETE FROM ai_examples WHERE category = :category")
     abstract suspend fun deleteAiExamplesFor(category: String)
 
@@ -494,9 +509,13 @@ abstract class AppDatabase : RoomDatabase() {
 
         @Volatile private var instance: AppDatabase? = null
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
-            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "blocky.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
-                .build().also { instance = it }
+            instance ?: run {
+                // obnova zo zálohy sa dokončí pred otvorením databázy
+                Backup.applyPendingRestore(context.applicationContext)
+                Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "blocky.db")
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .build().also { instance = it }
+            }
         }
     }
 }

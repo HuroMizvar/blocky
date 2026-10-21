@@ -137,7 +137,10 @@ fun MonthSwitcher(month: YearMonth, months: List<YearMonth>, onSelect: (YearMont
         IconButton(onClick = { months.getOrNull(idx + 1)?.let(onSelect) }, enabled = canPrev) {
             Icon(Icons.Default.ChevronLeft, "Predchádzajúci mesiac", tint = if (canPrev) Pal.Ink else Pal.Faint)
         }
-        Text(monthLabel(month), Modifier.weight(1f), fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(monthLabel(month), fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            sk.miro.blocky.domain.Period.rangeLabel(month)?.let { Text(it, fontSize = 12.sp, color = Pal.Muted) }
+        }
         IconButton(onClick = { months.getOrNull(idx - 1)?.let(onSelect) }, enabled = canNext) {
             Icon(Icons.Default.ChevronRight, "Nasledujúci mesiac", tint = if (canNext) Pal.Ink else Pal.Faint)
         }
@@ -485,4 +488,12 @@ fun CustomCategoryDialog(existing: CustomCategories.Def?, onDismiss: () -> Unit,
         text = { Text("Položky z tejto kategórie sa presunú do „Iné“.") },
         confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("Zmazať", color = Pal.Red) } },
         dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Zrušiť") } })
+}
+
+
+/** Jemné podfarbenie kategórie podľa rozpočtu: oranžová = hrozí prekročenie, červená = prekročené. */
+fun budgetHighlight(s: sk.miro.blocky.domain.BudgetState): Color? = when (s) {
+    sk.miro.blocky.domain.BudgetState.OVER -> Pal.RedSoft
+    sk.miro.blocky.domain.BudgetState.RISK -> Pal.AmberSoft
+    else -> null
 }

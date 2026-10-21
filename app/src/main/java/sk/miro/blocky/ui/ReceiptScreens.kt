@@ -98,6 +98,16 @@ fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Lo
         words.all { w -> m.contains(w) } || hits.containsKey(it.receipt.id)
     }
     val grouped = receipts.groupBy { Analytics.monthOf(it.receipt.issuedAt) }
+    // bloček, ktorý sa z eKasa nepodarilo načítať → ručný záznam (pri offline QR so sumou a dátumom z QR kódu)
+    var manualFor by remember { mutableStateOf<sk.miro.blocky.data.PendingScanEntity?>(null) }
+    manualFor?.let { p ->
+        val off = sk.miro.blocky.data.EkasaQr.parse(p.raw) as? sk.miro.blocky.data.EkasaQr.Offline
+        val cents = off?.totalAmount?.replace(',', '.')?.toDoubleOrNull()?.let { Math.round(it * 100) }
+        val at = off?.issueDate?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli() ?: p.createdAt
+        ManualEntryDialog(onDismiss = { manualFor = null }, title = "Ručný záznam bločku", initialCents = cents) { m, c, cat ->
+            vm.addManual(m, c, cat, at); vm.deletePending(p.raw); manualFor = null
+        }
+    }
     LazyColumn(Modifier.fillMaxSize().background(Pal.Bg), contentPadding = pad(contentPadding)) {
         item { ScreenTitle("Bločky", actions = actions) }
         if (all.isEmpty() && pending.isEmpty()) {
@@ -151,6 +161,7 @@ fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Lo
                                 Text(fmtDate(p.createdAt) + (p.message?.let { " · $it" } ?: ""), fontSize = 12.sp,
                                     color = Pal.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
+                            if (p.status == "FAILED") TextButton(onClick = { manualFor = p }) { Text("Zadať ručne", color = Pal.Green) }
                             IconButton(onClick = { vm.deletePending(p.raw) }) { Icon(Icons.Default.Delete, "Odstrániť", tint = Pal.Muted) }
                         }
                     }
@@ -164,6 +175,7 @@ fun ReceiptsScreen(vm: MainViewModel, contentPadding: PaddingValues, onOpen: (Lo
                     verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(monthLabel(month), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                        sk.miro.blocky.domain.Period.rangeLabel(month)?.let { Text(it, fontSize = 12.sp, color = Pal.Muted) }
                         Text("${list.size} ${receiptWord(list.size)}", fontSize = 12.sp, color = Pal.Muted)
                     }
                     Text(eur(list.sumOf { it.counted }), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
@@ -481,6 +493,7 @@ fun BudgetsScreen(vm: MainViewModel, contentPadding: PaddingValues, actions: @Co
     val st by vm.state.collectAsState()
     val cats by vm.catsVersion.collectAsState()   // prekresliť pri zmene vlastných kategórií
     val spent = st.report?.categories?.associate { it.category to it.cents }.orEmpty()
+    val states = st.report?.categories?.associate { it.category to it.budgetState }.orEmpty()
     var proposal by remember { mutableStateOf<List<BudgetPlanner.Suggestion>?>(null) }
     var editCustom by remember { mutableStateOf<CustomCategories.Def?>(null) }
     var newCustom by remember { mutableStateOf(false) }
@@ -510,7 +523,7 @@ fun BudgetsScreen(vm: MainViewModel, contentPadding: PaddingValues, actions: @Co
         item {
             BCard(padding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
                 Category.visible.filter { it != Category.ZLAVY && it != Category.ZALOHY }.forEach { c ->
-                    key(c, cats) { BudgetRow(c, st.budgets[c], spent[c] ?: 0L) { vm.setBudget(c, it) } }
+                    key(c, cats) { BudgetRow(c, st.budgets[c], spent[c] ?: 0L, states[c]) { vm.setBudget(c, it) } }
                 }
             }
         }
@@ -604,15 +617,20 @@ private fun AutoBudgetDialog(list: List<BudgetPlanner.Suggestion>, current: Map<
 }
 
 @Composable
-private fun BudgetRow(c: Category, budget: Long?, spent: Long, onSave: (Long?) -> Unit) {
+private fun BudgetRow(c: Category, budget: Long?, spent: Long, state: sk.miro.blocky.domain.BudgetState?, onSave: (Long?) -> Unit) {
     var text by remember(budget) { mutableStateOf(budget?.let { (it / 100).toString() } ?: "") }
     val over = budget != null && spent > budget
-    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    val risk = !over && state == sk.miro.blocky.domain.BudgetState.RISK
+    val hl = if (over) Pal.RedSoft else if (risk) Pal.AmberSoft else null
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(14.dp))
+        .then(if (hl != null) Modifier.background(hl) else Modifier)
+        .padding(vertical = 6.dp, horizontal = if (hl != null) 8.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) {
         CatBadge(c, 34)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(c.label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text("tento mesiac ${eur(spent)}", fontSize = 12.sp, color = if (over) Pal.Red else Pal.Muted)
+            Text("tento mesiac ${eur(spent)}" + when { over -> " · prekročené"; risk -> " · hrozí prekročenie"; else -> "" },
+                fontSize = 12.sp, color = if (over) Pal.Red else if (risk) Pal.Amber else Pal.Muted)
         }
         OutlinedTextField(
             value = text,

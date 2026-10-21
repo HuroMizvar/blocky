@@ -39,6 +39,8 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
         fun applyProfileJson(json: String)
         fun customCategoriesJson(): String
         fun applyCustomCategoriesJson(json: String)
+        /** Zlúči vlastné kategórie domácnosti s vlastnými kategóriami tohto telefónu; vráti výsledok. */
+        suspend fun mergeCustomCategoriesJson(remote: String): String
     }
 
     companion object {
@@ -100,7 +102,7 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
             .put("v", FirestoreRest.int(1)), mustNotExist = true)))
         writeMember(r, h, k, name)
         saveMembership(BuildConfig.FB_PROJECT_ID, BuildConfig.FB_API_KEY, h, k, name)
-        afterJoin(name)
+        afterJoin(name, joining = false)
     }
 
     suspend fun join(invite: Invite, name: String) = withContext(Dispatchers.IO) {
@@ -117,7 +119,7 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
             throw SyncException("Domácnosť je plná (najviac $MAX_MEMBERS členov).")
         }
         saveMembership(invite.projectId, invite.apiKey, invite.householdId, invite.key, name)
-        afterJoin(name)
+        afterJoin(name, joining = true)
     }
 
     private fun writeMember(r: FirestoreRest, h: String, k: ByteArray, name: String) {
@@ -134,23 +136,48 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
     }
 
     /** Po vstupe: poslať všetky vlastné bločky a nastavenia, stiahnuť bločky ostatných. */
-    private suspend fun afterJoin(name: String) {
+    private suspend fun afterJoin(name: String, joining: Boolean) {
         dao.clearSyncIds()
         dao.markAllDirty(name, tokenStore.uid ?: "")
-        queueAllSettings()
+        // pri vstupe do existujúcej domácnosti majú prednosť jej nastavenia – inak by ich prepísali prázdne nastavenia nového telefónu
+        val skip = if (joining) runCatching { adoptHouseholdSettings() }.getOrDefault(emptySet()) else emptySet()
+        queueAllSettings(skip)
         publish()
         schedulePeriodic(context)
         syncNow()
     }
 
-    private suspend fun queueAllSettings() {
+    private suspend fun queueAllSettings(skip: Set<String> = emptySet()) {
         val now = System.currentTimeMillis()
-        dao.rules().forEach { queue("rule", it.normName, it.category, now) }
-        dao.aiExamples().forEach { queue("aiex", it.normName, it.category, now) }
-        dao.userMerchants().forEach { queue("merchant", it.mkey, JSONObject().put("name", it.name).put("type", it.type).toString(), now) }
-        dao.budgetList().forEach { queue("budget", it.category, it.monthlyCents.toString(), now) }
-        queue("profile", "household", hooks.profileJson(), now)
-        queue("customcats", "all", hooks.customCategoriesJson(), now)
+        suspend fun q(kind: String, k: String, v: String?) { if ("$kind:$k" !in skip) queue(kind, k, v, now) }
+        dao.rules().forEach { q("rule", it.normName, it.category) }
+        dao.aiExamples().forEach { q("aiex", it.normName, it.category) }
+        dao.userMerchants().forEach { q("merchant", it.mkey, JSONObject().put("name", it.name).put("type", it.type).toString()) }
+        dao.budgetList().forEach { q("budget", it.category, it.monthlyCents.toString()) }
+        q("profile", "household", hooks.profileJson())
+        q("customcats", "all", hooks.customCategoriesJson())
+    }
+
+    /**
+     * Stiahne nastavenia domácnosti a použije ich v tomto telefóne. Vlastné kategórie sa zlúčia
+     * (rovnaký názov = jedna kategória). Vráti kľúče, ktoré sa z tohto telefónu nemajú posielať.
+     */
+    private suspend fun adoptHouseholdSettings(): Set<String> {
+        val r = rest()
+        val k = key
+        val skip = HashSet<String>()
+        for (doc in r.list("$home/kv")) {
+            val enc = FirestoreRest.fieldStr(doc, "enc") ?: continue
+            val kv = runCatching { SyncPayload.kvFromJson(SyncCrypto.decrypt(k, enc)) }.getOrNull() ?: continue
+            if (kv.kind == "customcats") {
+                val merged = hooks.mergeCustomCategoriesJson(kv.value ?: "[]")
+                if (merged == (kv.value ?: "[]")) skip += "customcats:all"   // nič nové – netreba posielať
+            } else {
+                runCatching { applyKv(doc, k) }
+                skip += "${kv.kind}:${kv.key}"
+            }
+        }
+        return skip
     }
 
     /** Zmenené nastavenie – odošle sa pri najbližšej synchronizácii. */

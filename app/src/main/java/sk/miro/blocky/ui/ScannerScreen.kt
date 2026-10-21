@@ -146,7 +146,7 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(monthName(java.time.YearMonth.now()) + if (mock) " · TESTOVACÍ REŽIM" else "",
+                Text(monthName(sk.miro.blocky.domain.Period.current()) + if (mock) " · TESTOVACÍ REŽIM" else "",
                     color = Color(0xFFD7DDD9), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Text(eur(monthTotal), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
             }

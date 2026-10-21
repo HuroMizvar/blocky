@@ -19,7 +19,7 @@ import java.time.YearMonth
 
 data class DashboardState(
     val months: List<YearMonth> = emptyList(),
-    val month: YearMonth = YearMonth.now(),
+    val month: YearMonth = Period.current(),
     val report: MonthReport? = null,
     val recommendations: List<Recommendation> = emptyList(),
     val budgets: Map<Category, Long> = emptyMap(),
@@ -30,7 +30,7 @@ data class DashboardState(
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     val repo = Repository(app)
 
-    private val selectedMonth = MutableStateFlow(YearMonth.now())
+    private val selectedMonth = MutableStateFlow(Period.current())
     private val _profile = MutableStateFlow(repo.profile)
     val profile: StateFlow<HouseholdProfile> = _profile
 
@@ -41,15 +41,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val state: StateFlow<DashboardState> =
         combine(rows, repo.budgets, selectedMonth, _profile) { r, b, m, prof ->
             val budgets = b.associate { Category.fromName(it.category) to it.monthlyCents }
-            val months = (Analytics.availableMonths(r) + YearMonth.now()).distinct().sortedDescending()
+            val months = (Analytics.availableMonths(r) + Period.current()).distinct().sortedDescending()
             val report = Analytics.report(r, m, budgets)
             DashboardState(months, m, report, Analytics.recommendations(r, report, profile = prof), budgets, prof, loading = false)
         }.flowOn(Dispatchers.Default)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardState())
 
     /** Súčet za aktuálny mesiac – zobrazuje sa na skeneri. */
-    val monthTotal: StateFlow<Long> = rows.map { r ->
-        val now = YearMonth.now()
+    val monthTotal: StateFlow<Long> = combine(rows, _profile) { r, _ -> r }.map { r ->
+        val now = Period.current()
         r.filter { Analytics.monthOf(it.issuedAt) == now && it.category != Category.ZALOHY.name }.sumOf { it.priceCents }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
@@ -231,7 +231,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---------- Profil domácnosti ----------
-    fun setProfile(p: HouseholdProfile) { _profile.value = p; viewModelScope.launch { repo.saveProfile(p) } }
+    fun setProfile(p: HouseholdProfile) {
+        val periodChanged = p.payDay != Period.payDay
+        Period.payDay = p.payDay
+        if (periodChanged) selectedMonth.value = Period.current()
+        _profile.value = p; viewModelScope.launch { repo.saveProfile(p) }
+    }
 
     // ---------- Spoločná domácnosť ----------
     val syncStatus: StateFlow<SyncStatus> = HouseholdSync.status
@@ -340,6 +345,87 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         done()
     }
 
+    // ---------- Záloha a obnova ----------
+    private val _backupMsg = MutableStateFlow<String?>(null)
+    /** výsledok poslednej akcie so zálohou (zobrazí sa v Nastaveniach) */
+    val backupMsg: StateFlow<String?> = _backupMsg
+    private val _backupBusy = MutableStateFlow(false)
+    val backupBusy: StateFlow<Boolean> = _backupBusy
+    private val _autoBackup = MutableStateFlow(Backup.autoState(app))
+    val autoBackup: StateFlow<Backup.AutoState> = _autoBackup
+    /** otvorená záloha čakajúca na potvrdenie obnovy */
+    private var pendingRestore: org.json.JSONObject? = null
+    private val _restoreInfo = MutableStateFlow<Backup.Info?>(null)
+    val restoreInfo: StateFlow<Backup.Info?> = _restoreInfo
+
+    fun clearBackupMsg() { _backupMsg.value = null }
+
+    fun backupTo(uri: Uri, password: CharArray) = viewModelScope.launch {
+        _backupBusy.value = true
+        _backupMsg.value = try {
+            val bytes = Backup.create(getApplication(), password)
+            kotlinx.coroutines.withContext(Dispatchers.IO) {
+                getApplication<Application>().contentResolver.openOutputStream(uri, "w")?.use { it.write(bytes) }
+                    ?: error("Súbor sa nedá zapísať.")
+            }
+            getApplication<Application>().getSharedPreferences("backup", 0).edit().putLong("lastManual", System.currentTimeMillis()).apply()
+            "Záloha je uložená. Heslo si dobre zapamätajte – bez neho sa záloha nedá obnoviť."
+        } catch (e: Exception) { "Zálohu sa nepodarilo uložiť: ${e.message}" }
+        _backupBusy.value = false
+    }
+
+    fun openBackup(uri: Uri, password: CharArray) = viewModelScope.launch {
+        _backupBusy.value = true
+        try {
+            val bytes = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Súbor sa nedá otvoriť.")
+            }
+            val payload = Backup.open(bytes, password)
+            pendingRestore = payload
+            _restoreInfo.value = Backup.info(payload)
+        } catch (e: Exception) {
+            _backupMsg.value = e.message ?: "Zálohu sa nepodarilo otvoriť."
+        }
+        _backupBusy.value = false
+    }
+
+    fun cancelRestore() { pendingRestore = null; _restoreInfo.value = null }
+
+    /** Obnoví údaje zo zálohy; po dokončení treba aplikáciu reštartovať ([onRestart]). */
+    fun confirmRestore(onRestart: () -> Unit) = viewModelScope.launch {
+        val p = pendingRestore ?: return@launch
+        _backupBusy.value = true
+        try {
+            Backup.restore(getApplication(), p)
+            pendingRestore = null; _restoreInfo.value = null
+            onRestart()
+        } catch (e: Exception) {
+            _backupMsg.value = e.message ?: "Obnova sa nepodarila."
+            _backupBusy.value = false
+        }
+    }
+
+    fun enableAutoBackup(tree: Uri, folderName: String?, password: CharArray) = viewModelScope.launch {
+        try {
+            Backup.enableAuto(getApplication(), tree, folderName, password)
+            _autoBackup.value = Backup.autoState(getApplication())
+            _backupBusy.value = true
+            Backup.runAuto(getApplication())   // prvá záloha hneď
+            _backupMsg.value = "Automatická záloha je zapnutá. Prvá záloha je uložená v priečinku."
+        } catch (e: Exception) {
+            _backupMsg.value = "Automatickú zálohu sa nepodarilo nastaviť: ${e.message}"
+        }
+        _backupBusy.value = false
+        _autoBackup.value = Backup.autoState(getApplication())
+    }
+
+    fun disableAutoBackup() {
+        Backup.disableAuto(getApplication())
+        _autoBackup.value = Backup.autoState(getApplication())
+    }
+
+    fun refreshAutoBackup() { _autoBackup.value = Backup.autoState(getApplication()) }
+
     fun deletePending(key: String) = viewModelScope.launch { repo.deletePending(key) }
 
     // ---------- Testovací režim ----------
@@ -354,7 +440,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun seedDemo() = viewModelScope.launch {
         _testMsg.value = "Generujem demo dáta…"
         val n = repo.seedDemo()
-        selectedMonth.value = YearMonth.now()
+        selectedMonth.value = Period.current()
         _testMsg.value = "Nahraných $n demo bločkov (aktuálny + 3 predchádzajúce mesiace)."
     }
 

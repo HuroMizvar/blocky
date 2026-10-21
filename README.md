@@ -43,6 +43,8 @@ alebo pri offline doklade, ktorý ešte nie je v eKasa, to aplikácia skúša au
 | Mesačný report | Spolu, vs. minulý mesiac, vs. priemer posledných ≤3 mesiacov, lineárna projekcia do konca mesiaca, kategórie, obchody, top položky |
 | Odporúčania | Prekročený / ohrozený rozpočet · nárast kategórie >25 % nad priemer · podiel alkoholu/tabaku/sladkostí/reštaurácií nad orientačným stropom · rovnaký produkt lacnejšie v inom obchode · zdražené položky · drobné impulzívne nákupy · často kupované položky · nevrátené zálohy |
 | Rozpočty | Mesačný limit na kategóriu. *Nastaviť podľa môjho míňania* (`BudgetPlanner`): medián celej histórie (alebo nižšie míňanie posledných 3 mesiacov), −15 % zbytné / −10 % ostatné / −5 % nevyhnutné, zaokrúhlené nadol |
+| Záloha | Zašifrovaný súbor `.blocky` (heslo → PBKDF2-SHA256 210k → AES-256-GCM): databáza + nastavenia + členstvo v domácnosti. Obnova sa dokončí pri ďalšom štarte (`Backup.applyPendingRestore`). Voliteľne týždenne do zvoleného priečinka (4 posledné) |
+| Deň výplaty | Rozpočtový mesiac od zvoleného dňa (`Period`), synchronizuje sa v profile domácnosti |
 | Vyhľadávanie | Bločky podľa obchodu aj položiek, so súčtom nájdených položiek |
 | Nastavenia | Záložky: Domácnosť · AI · Aktualizácie · Súkromie a dáta |
 | Export | CSV (oddeľovač `;`, UTF‑8 – otvorí sa priamo v Exceli) |

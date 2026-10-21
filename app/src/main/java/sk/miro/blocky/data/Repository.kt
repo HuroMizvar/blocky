@@ -12,6 +12,7 @@ import sk.miro.blocky.domain.HouseholdProfile
 import sk.miro.blocky.domain.ItemEdit
 import sk.miro.blocky.domain.MerchantResolver
 import sk.miro.blocky.domain.MerchantType
+import sk.miro.blocky.domain.Period
 import sk.miro.blocky.sync.HouseholdSync
 import org.json.JSONObject
 import java.io.File
@@ -56,13 +57,39 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
     /** Spoločná domácnosť (voliteľné). */
     val sync = HouseholdSync(context, dao, this)
 
-    init { CustomCategories.load(prefs.getString("customCats", null)) }
+    init {
+        CustomCategories.load(prefs.getString("customCats", null))
+        Period.payDay = prefs.getInt("p_payday", 1)
+    }
 
     override fun customCategoriesJson(): String = CustomCategories.toJson()
     override fun applyCustomCategoriesJson(json: String) {
         CustomCategories.load(json)
         prefs.edit().putString("customCats", json).apply()
         customCatsVersion.value++
+    }
+
+    override suspend fun mergeCustomCategoriesJson(remote: String): String {
+        val result = CustomCategories.parse(remote).toMutableMap()
+        val moves = ArrayList<Pair<Category, Category>>()
+        for (d in CustomCategories.all) {
+            val same = result.values.firstOrNull { it.label.trim().equals(d.label.trim(), ignoreCase = true) }
+            val target = same?.slot
+                ?: d.slot.takeIf { it !in result }
+                ?: Category.entries.firstOrNull { it.isCustom && it !in result }
+            if (target == null) { moves += d.slot to Category.INE; continue }   // všetkých 8 miest obsadených
+            if (same == null) result[target] = d.copy(slot = target)
+            if (target != d.slot) moves += d.slot to target
+        }
+        // presun v dvoch krokoch, aby sa dve kategórie navzájom neprepísali (CUSTOM1 ↔ CUSTOM2)
+        moves.forEach { (from, to) -> dao.moveCategory(from.name, "MV_" + to.name) }
+        moves.forEach { (_, to) -> dao.moveCategory("MV_" + to.name, to.name) }
+        CustomCategories.replaceAll(result)
+        val json = CustomCategories.toJson()
+        prefs.edit().putString("customCats", json).apply()
+        customCatsVersion.value++
+        if (moves.isNotEmpty()) InternalAi.invalidate()
+        return json
     }
 
     /** mení sa pri zmene vlastných kategórií (aj zo synchronizácie domácnosti) */
@@ -95,13 +122,13 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
 
     override fun profileJson(): String = profile.let { p ->
         JSONObject().put("people", p.people).put("kids", p.kids).put("carer", p.carer).put("pets", p.pets)
-            .put("car", p.car).put("note", p.note).toString()
+            .put("car", p.car).put("note", p.note).put("payDay", p.payDay).toString()
     }
 
     override fun applyProfileJson(json: String) {
         val o = JSONObject(json)
         profile = HouseholdProfile(o.optInt("people"), o.optInt("kids"), o.optBoolean("carer"), o.optBoolean("pets"),
-            o.optBoolean("car"), o.optString("note"))
+            o.optBoolean("car"), o.optString("note"), o.optInt("payDay", 1))
     }
 
     /** Uloží profil a pošle ho ostatným členom domácnosti. */
@@ -153,11 +180,13 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
         get() = HouseholdProfile(
             people = prefs.getInt("p_people", 0), kids = prefs.getInt("p_kids", 0),
             carer = prefs.getBoolean("p_carer", false), pets = prefs.getBoolean("p_pets", false),
-            car = prefs.getBoolean("p_car", false), note = prefs.getString("p_note", "") ?: ""
+            car = prefs.getBoolean("p_car", false), note = prefs.getString("p_note", "") ?: "",
+            payDay = prefs.getInt("p_payday", 1)
         )
         set(v) = prefs.edit().putInt("p_people", v.people).putInt("p_kids", v.kids)
             .putBoolean("p_carer", v.carer).putBoolean("p_pets", v.pets).putBoolean("p_car", v.car)
-            .putString("p_note", v.note.take(1000)).apply()
+            .putString("p_note", v.note.take(1000)).putInt("p_payday", v.payDay.coerceIn(1, 31)).apply()
+            .also { Period.payDay = v.payDay }
 
     val demoCount = dao.countBySource(DemoData.SOURCE)
     val unknownMerchants = dao.unknownMerchants()
@@ -495,6 +524,7 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
         dao.clearAll()
         val keepVersion = prefs.getInt("catVersion", 0)
         prefs.edit().clear().putInt("catVersion", keepVersion).apply()
+        Period.payDay = 1
         File(context.cacheDir, "exports").deleteRecursively()
         File(context.cacheDir, "updates").deleteRecursively()
     }

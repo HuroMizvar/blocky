@@ -29,7 +29,7 @@ object AiExport {
         options: AiExportOptions = AiExportOptions(),
         today: LocalDate = LocalDate.now()
     ): String {
-        val nowYm = YearMonth.from(today)
+        val nowYm = Period.of(today)
         val months = Analytics.availableMonths(rows).filter { !it.isAfter(nowYm) }.take(options.months).sorted()
         val sb = StringBuilder()
 
@@ -53,9 +53,10 @@ object AiExport {
         }
 
         val reports = months.associateWith { Analytics.report(rows, it, budgets, today) }
-        val partial = months.last() == nowYm && today.dayOfMonth < nowYm.lengthOfMonth()
+        val partial = months.last() == nowYm && Period.dayIndex(nowYm, today) < Period.length(nowYm)
 
         sb.appendLine("## Výdavky podľa kategórií (bez vratných záloh)")
+        if (Period.payDay != 1) sb.appendLine("Mesiac = obdobie od ${Period.payDay}. dňa (deň výplaty) do dňa pred ním v nasledujúcom mesiaci.")
         val header = months.joinToString(" | ") { ym(it) + if (it == nowYm && partial) "*" else "" }
         sb.appendLine("| Kategória | $header | Mesačný rozpočet |")
         sb.appendLine("|---|" + months.joinToString("") { "---:|" } + "---:|")
@@ -74,8 +75,7 @@ object AiExport {
         if (dep > 0) sb.appendLine("Nevrátené zálohy za obaly za obdobie: ${money(dep)}.")
         sb.appendLine()
 
-        val period = rows.filter { YearMonth.from(java.time.Instant.ofEpochMilli(it.issuedAt)
-            .atZone(java.time.ZoneId.systemDefault())) in months && it.category != Category.ZALOHY.name }
+        val period = rows.filter { Analytics.monthOf(it.issuedAt) in months && it.category != Category.ZALOHY.name }
 
         if (options.includeMerchants) {
             sb.appendLine("## Obchody a prevádzky (spolu za obdobie)")

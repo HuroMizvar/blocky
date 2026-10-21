@@ -10,8 +10,14 @@ import org.json.JSONObject
 object CustomCategories {
     data class Def(val slot: Category, val label: String, val icon: String, val color: Int)
 
-    @Volatile var defs: Map<Category, Def> = emptyMap()
-        private set
+    /**
+     * Compose stav – obrazovky, ktoré čítajú názov / ikonu / farbu vlastnej kategórie, sa samy prekreslia,
+     * aj keď zmena príde zo synchronizácie domácnosti na pozadí.
+     */
+    private val state = androidx.compose.runtime.mutableStateOf<Map<Category, Def>>(emptyMap())
+    var defs: Map<Category, Def>
+        get() = state.value
+        private set(v) { state.value = v }
 
     private val slots = Category.entries.filter { it.isCustom }
 
@@ -27,6 +33,9 @@ object CustomCategories {
         return free
     }
 
+    /** Nahradí všetky definície (zlúčenie pri vstupe do domácnosti). */
+    fun replaceAll(m: Map<Category, Def>) { defs = m }
+
     fun update(c: Category, label: String, icon: String, color: Int) {
         if (c in defs) defs = defs + (c to Def(c, label.trim().take(30), icon, color))
     }
@@ -37,9 +46,11 @@ object CustomCategories {
         all.forEach { put(JSONObject().put("slot", it.slot.name).put("label", it.label).put("icon", it.icon).put("color", it.color)) }
     }.toString()
 
-    fun load(json: String?) {
-        if (json.isNullOrBlank()) { defs = emptyMap(); return }
-        defs = try {
+    fun load(json: String?) { defs = parse(json) }
+
+    fun parse(json: String?): Map<Category, Def> {
+        if (json.isNullOrBlank()) return emptyMap()
+        return try {
             val a = JSONArray(json)
             (0 until a.length()).mapNotNull { i ->
                 val o = a.getJSONObject(i)

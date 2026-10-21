@@ -33,6 +33,13 @@ Zálohovanie do cloudu Android je pre aplikáciu vypnuté.
 4. **Zdieľanie na AI analýzu (voliteľné)** – text so súhrnom výdavkov sa odošle len vtedy, keď ho vy sami
    zdieľate do inej aplikácie (napr. chatu s AI). Aplikácia ho sama nikam neposiela.
 
+## 2a. Záloha (voliteľné)
+
+Zálohu vytvárate sami (Nastavenia → Súkromie a dáta → Zálohovať). Súbor je zašifrovaný vaším heslom
+(PBKDF2 + AES-256-GCM) a uložíte ho tam, kam sami určíte (napr. Disk Google, počítač). Aplikácia ho nikam
+neposiela a heslo nepozná – bez hesla zálohu nikto neotvorí ani ju nemožno obnoviť. Pri automatickej
+zálohe sa heslo uloží v telefóne chránené systémovým úložiskom kľúčov Android Keystore.
+
 ## 3. Uchovávanie a vymazanie údajov
 
 - **V telefóne:** Nastavenia → Súkromie → *Zmazať všetko* natrvalo zmaže všetky údaje. Odinštalovanie aplikácie ich zmaže tiež.

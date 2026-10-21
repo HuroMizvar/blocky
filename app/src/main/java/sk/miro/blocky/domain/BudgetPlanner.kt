@@ -62,7 +62,7 @@ object BudgetPlanner {
     }
 
     fun plan(rows: List<ItemRow>, today: LocalDate = LocalDate.now()): List<Suggestion> {
-        val current = YearMonth.from(today)
+        val current = Period.of(today)
         val byCat = rows.groupBy { Category.fromName(it.category) }
         val out = mutableListOf<Suggestion>()
         for ((cat, list) in byCat) {
@@ -74,9 +74,10 @@ object BudgetPlanner {
             val s = if (complete.isNotEmpty()) suggest(cat, complete)
                 else {
                     // ešte žiadny celý mesiac – odhad z doterajška (aspoň po týždni)
-                    if (today.dayOfMonth < 7) continue
+                    val day = Period.dayIndex(current, today)
+                    if (day < 7) continue
                     val soFar = perMonth[current] ?: continue
-                    val projected = soFar * current.lengthOfMonth() / today.dayOfMonth
+                    val projected = soFar * Period.length(current) / day
                     suggest(cat, listOf(projected))?.copy(months = 0)
                 }
             if (s != null) out += s
