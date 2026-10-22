@@ -497,3 +497,19 @@ fun budgetHighlight(s: sk.miro.blocky.domain.BudgetState): Color? = when (s) {
     sk.miro.blocky.domain.BudgetState.RISK -> Pal.AmberSoft
     else -> null
 }
+
+
+/** Zdroj údajov a vyhlásenie, že aplikácia nie je štátna (požiadavka Google Play na vládne informácie). */
+@Composable
+fun GovSourceNote(modifier: Modifier = Modifier) {
+    val uri = androidx.compose.ui.platform.LocalUriHandler.current
+    Column(modifier.fillMaxWidth()) {
+        Text("Zdroj údajov: služba eKasa – Over doklad, Finančná správa SR", fontSize = 12.sp, color = Pal.Muted)
+        Text(GOV_SOURCE_URL, Modifier.clickable { uri.openUri(GOV_SOURCE_URL) }.padding(vertical = 2.dp),
+            fontSize = 12.sp, color = Pal.Green, fontWeight = FontWeight.SemiBold)
+        Text("Bločky nie sú aplikáciou Finančnej správy SR ani iného štátneho orgánu a nekonajú v ich mene.",
+            fontSize = 12.sp, color = Pal.Muted)
+    }
+}
+
+const val GOV_SOURCE_URL = "https://opd.financnasprava.sk/"

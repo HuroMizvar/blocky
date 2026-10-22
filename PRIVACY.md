@@ -3,7 +3,7 @@
 *Platné od 15. 10. 2026*
 
 Bločky je aplikácia na skenovanie pokladničných bločkov eKasa a prehľad osobných výdavkov.
-Aplikácia je navrhnutá tak, aby vaše údaje zostali súkromné. Nie je oficiálnou aplikáciou Finančnej správy SR.
+Aplikácia je navrhnutá tak, aby vaše údaje zostali súkromné. Nie je aplikáciou Finančnej správy SR ani iného štátneho orgánu a nekoná v ich mene. Položky bločkov pochádzajú zo služby eKasa – Over doklad Finančnej správy SR: https://opd.financnasprava.sk/
 
 ## 1. Aké údaje aplikácia spracúva a kde sú uložené
 

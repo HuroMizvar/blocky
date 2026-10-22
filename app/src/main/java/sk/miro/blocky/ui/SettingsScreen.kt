@@ -211,6 +211,7 @@ private fun PrivacySection(vm: MainViewModel, onExport: () -> Unit, onDeleted: (
             }
         }
     }
+    GovSourceNote(Modifier.padding(top = 12.dp))
     Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = onExport, shape = RoundedCornerShape(14.dp)) { Text("Exportovať dáta (CSV)") }
         Button(onClick = { confirm = true }, shape = RoundedCornerShape(14.dp),

@@ -375,6 +375,7 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
                     }
                 }
             }
+            if (data?.receipt?.source == "EKASA") item { GovSourceNote(Modifier.padding(top = 20.dp)) }
         }
     }
 
