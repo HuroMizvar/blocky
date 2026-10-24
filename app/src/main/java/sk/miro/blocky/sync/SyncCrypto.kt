@@ -61,11 +61,17 @@ object SyncCrypto {
     private fun ByteArray.toHex() = joinToString("") { "%02x".format(it) }
 }
 
-/** Obsah pozývacieho QR kódu: server (projekt Firebase), domácnosť a kľúč. */
-data class Invite(val projectId: String, val apiKey: String, val householdId: String, val key: ByteArray) {
+/**
+ * Obsah pozývacieho QR kódu: server (projekt Firebase), domácnosť a kľúč.
+ * Kľúč správcu ([adminSecret]) navyše obsahuje tajomstvo správcu – s ním sa nové zariadenie stane správcom.
+ */
+data class Invite(val projectId: String, val apiKey: String, val householdId: String, val key: ByteArray,
+                  val adminSecret: ByteArray? = null) {
     fun encode(): String {
-        val body = listOf(projectId, apiKey, householdId, SyncCrypto.keyToText(key)).joinToString("|")
-        return PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(body.toByteArray(Charsets.UTF_8))
+        val parts = listOf(projectId, apiKey, householdId, SyncCrypto.keyToText(key)) +
+            listOfNotNull(adminSecret?.let { SyncCrypto.keyToText(it) })
+        return (if (adminSecret != null) ADMIN_PREFIX else PREFIX) +
+            Base64.getUrlEncoder().withoutPadding().encodeToString(parts.joinToString("|").toByteArray(Charsets.UTF_8))
     }
 
     override fun equals(other: Any?) = other is Invite && other.projectId == projectId && other.apiKey == apiKey &&
@@ -74,13 +80,24 @@ data class Invite(val projectId: String, val apiKey: String, val householdId: St
 
     companion object {
         const val PREFIX = "BLOCKY1:"
-        fun isInvite(raw: String) = raw.trim().startsWith(PREFIX)
+        const val ADMIN_PREFIX = "BLOCKY1A:"
+        fun isInvite(raw: String) = raw.trim().let { it.startsWith(PREFIX) || it.startsWith(ADMIN_PREFIX) }
 
         fun decode(raw: String): Invite? = try {
-            val body = String(Base64.getUrlDecoder().decode(raw.trim().removePrefix(PREFIX)), Charsets.UTF_8)
+            val t = raw.trim()
+            val body = String(Base64.getUrlDecoder().decode(t.removePrefix(ADMIN_PREFIX).removePrefix(PREFIX)), Charsets.UTF_8)
             val p = body.split("|")
-            if (p.size != 4) null
-            else Invite(p[0], p[1], p[2], SyncCrypto.keyFromText(p[3])).takeIf { it.key.size == 32 && p[2].isNotBlank() }
+            when {
+                p.size == 4 && t.startsWith(PREFIX) -> Invite(p[0], p[1], p[2], SyncCrypto.keyFromText(p[3]))
+                p.size == 5 && t.startsWith(ADMIN_PREFIX) ->
+                    Invite(p[0], p[1], p[2], SyncCrypto.keyFromText(p[3]), SyncCrypto.keyFromText(p[4]))
+                else -> null
+            }?.takeIf { it.key.size == 32 && p[2].isNotBlank() }
         } catch (e: Exception) { null }
+
+        /** odtlačok tajomstva správcu uložený na serveri (samotné tajomstvo na server nejde) */
+        fun adminHash(secret: ByteArray, householdId: String): String =
+            java.security.MessageDigest.getInstance("SHA-256").digest(secret + householdId.toByteArray())
+                .joinToString("") { "%02x".format(it) }
     }
 }

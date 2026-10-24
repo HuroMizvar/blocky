@@ -45,6 +45,9 @@ alebo pri offline doklade, ktorý ešte nie je v eKasa, to aplikácia skúša au
 | Rozpočty | Mesačný limit na kategóriu. *Nastaviť podľa môjho míňania* (`BudgetPlanner`): medián celej histórie (alebo nižšie míňanie posledných 3 mesiacov), −15 % zbytné / −10 % ostatné / −5 % nevyhnutné, zaokrúhlené nadol |
 | Záloha | Zašifrovaný súbor `.blocky` (heslo → PBKDF2-SHA256 210k → AES-256-GCM): databáza + nastavenia + členstvo v domácnosti. Obnova sa dokončí pri ďalšom štarte (`Backup.applyPendingRestore`). Voliteľne týždenne do zvoleného priečinka (4 posledné) |
 | Deň výplaty | Rozpočtový mesiac od zvoleného dňa (`Period`), synchronizuje sa v profile domácnosti |
+| Jazyk | Slovenčina / English (Nastavenia hore). Preklad pri zobrazení cez `I18n` + `assets/i18n_en.tsv` (generuje `tools/i18n/gen.py`); názvy položiek z bločkov sa neprekladajú |
+| Fixné výdavky | Nastavenia → Domácnosť: hypotéka, úver, leasing, nájom… s dňom platby; kategória `FIXNE` vždy na konci prehľadu, súčet „s fixnými výdavkami“ |
+| Správca domácnosti | Zakladateľ = správca (tajomstvo správcu, na serveri len odtlačok). Kľúč správcu `BLOCKY1A:` obnoví správcu na novom telefóne; správca môže odstrániť člena a vymeniť kľúč domácnosti |
 | Vyhľadávanie | Bločky podľa obchodu aj položiek, so súčtom nájdených položiek |
 | Nastavenia | Záložky: Domácnosť · AI · Aktualizácie · Súkromie a dáta |
 | Export | CSV (oddeľovač `;`, UTF‑8 – otvorí sa priamo v Exceli) |

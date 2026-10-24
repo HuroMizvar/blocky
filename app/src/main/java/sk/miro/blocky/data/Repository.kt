@@ -13,6 +13,9 @@ import sk.miro.blocky.domain.ItemEdit
 import sk.miro.blocky.domain.MerchantResolver
 import sk.miro.blocky.domain.MerchantType
 import sk.miro.blocky.domain.Period
+import sk.miro.blocky.domain.FixedExpense
+import sk.miro.blocky.domain.FixedExpenses
+import sk.miro.blocky.domain.I18n
 import sk.miro.blocky.sync.HouseholdSync
 import org.json.JSONObject
 import java.io.File
@@ -60,59 +63,140 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
     init {
         CustomCategories.load(prefs.getString("customCats", null))
         Period.payDay = prefs.getInt("p_payday", 1)
+        FixedExpenses.set(FixedExpenses.listFromJson(prefs.getString("fixed", null)))
+        I18n.english = prefs.getBoolean("lang_en", false)
+        if (I18n.english) loadTranslations()
     }
 
-    override fun customCategoriesJson(): String = CustomCategories.toJson()
-    override fun applyCustomCategoriesJson(json: String) {
-        CustomCategories.load(json)
-        prefs.edit().putString("customCats", json).apply()
-        customCatsVersion.value++
+    private fun loadTranslations() {
+        runCatching { I18n.load(context.assets.open("i18n_en.tsv").bufferedReader().use { it.readText() }) }
     }
 
-    override suspend fun mergeCustomCategoriesJson(remote: String): String {
-        val result = CustomCategories.parse(remote).toMutableMap()
-        val moves = ArrayList<Pair<Category, Category>>()
-        for (d in CustomCategories.all) {
-            val same = result.values.firstOrNull { it.label.trim().equals(d.label.trim(), ignoreCase = true) }
-            val target = same?.slot
-                ?: d.slot.takeIf { it !in result }
-                ?: Category.entries.firstOrNull { it.isCustom && it !in result }
-            if (target == null) { moves += d.slot to Category.INE; continue }   // všetkých 8 miest obsadených
-            if (same == null) result[target] = d.copy(slot = target)
-            if (target != d.slot) moves += d.slot to target
+    /** anglický jazyk aplikácie */
+    var english: Boolean
+        get() = prefs.getBoolean("lang_en", false)
+        set(v) {
+            if (v) loadTranslations()
+            prefs.edit().putBoolean("lang_en", v).apply()
+            I18n.english = v
         }
-        // presun v dvoch krokoch, aby sa dve kategórie navzájom neprepísali (CUSTOM1 ↔ CUSTOM2)
-        moves.forEach { (from, to) -> dao.moveCategory(from.name, "MV_" + to.name) }
-        moves.forEach { (_, to) -> dao.moveCategory("MV_" + to.name, to.name) }
-        CustomCategories.replaceAll(result)
-        val json = CustomCategories.toJson()
-        prefs.edit().putString("customCats", json).apply()
-        customCatsVersion.value++
-        if (moves.isNotEmpty()) InternalAi.invalidate()
-        return json
+
+    // ---------- fixné výdavky ----------
+    private fun persistFixed(l: List<FixedExpense>) {
+        FixedExpenses.set(l)
+        prefs.edit().putString("fixed", FixedExpenses.listToJson(l)).apply()
     }
+
+    suspend fun saveFixed(e: FixedExpense) {
+        val v = e.copy(at = System.currentTimeMillis())
+        persistFixed(FixedExpenses.list.value.filter { it.id != v.id } + v)
+        if (sync.enabled) { sync.queue("fixed", v.id, FixedExpenses.toJson(v)); sync.schedule() }
+    }
+
+    suspend fun deleteFixed(id: String) {
+        persistFixed(FixedExpenses.list.value.filter { it.id != id })
+        if (sync.enabled) { sync.queue("fixed", id, null); sync.schedule() }
+    }
+
+    override fun fixedJsons(): Map<String, String> = FixedExpenses.list.value.associate { it.id to FixedExpenses.toJson(it) }
+
+    override fun applyFixed(id: String, json: String?) {
+        val cur = FixedExpenses.list.value
+        if (json == null) { persistFixed(cur.filter { it.id != id }); return }
+        val e = FixedExpenses.fromJson(json) ?: return
+        val local = cur.firstOrNull { it.id == id }
+        if (local == null || e.at >= local.at) persistFixed(cur.filter { it.id != id } + e)
+    }
+
+    override fun customCategoryJsons(): Map<String, String> =
+        CustomCategories.all.associate { it.slot.name to CustomCategories.defToJson(it) }
 
     /** mení sa pri zmene vlastných kategórií (aj zo synchronizácie domácnosti) */
     val customCatsVersion = kotlinx.coroutines.flow.MutableStateFlow(0)
 
-    suspend fun saveCustomCategories() {
+    private fun persistCats() {
         prefs.edit().putString("customCats", CustomCategories.toJson()).apply()
-        if (sync.enabled) { sync.queue("customcats", "all", CustomCategories.toJson()); sync.schedule() }
+        customCatsVersion.value++
+    }
+
+    /** Uloží a pošle do domácnosti jednu vlastnú kategóriu (null = zmazaná). */
+    private suspend fun publishCustomCategory(slot: Category) {
+        persistCats()
+        if (sync.enabled) {
+            sync.queue("customcat", slot.name, CustomCategories.def(slot)?.let { CustomCategories.defToJson(it) })
+            sync.schedule()
+        }
     }
 
     /** Nová vlastná kategória; null = už je 8 vlastných kategórií. */
     suspend fun createCustomCategory(label: String, icon: String, color: Int): Category? =
-        CustomCategories.create(label, icon, color)?.also { saveCustomCategories() }
+        CustomCategories.create(label, icon, color)?.also { publishCustomCategory(it) }
+
+    /** Pre okamžitý výber v dialógu: vytvorí kategóriu hneď, odoslanie prebehne v [publishCreated]. */
+    fun createCustomCategoryNow(label: String, icon: String, color: Int): Category? =
+        CustomCategories.create(label, icon, color)?.also { persistCats() }
+
+    suspend fun publishCreated(c: Category) = publishCustomCategory(c)
 
     suspend fun updateCustomCategory(c: Category, label: String, icon: String, color: Int) {
-        CustomCategories.update(c, label, icon, color); saveCustomCategories()
+        CustomCategories.update(c, label, icon, color); publishCustomCategory(c)
     }
 
     /** Zmaže vlastnú kategóriu – jej položky sa presunú do „Iné“. */
     suspend fun deleteCustomCategory(c: Category) {
         dao.clearCategory(c.name); dao.deleteRulesFor(c.name); dao.deleteAiExamplesFor(c.name); dao.deleteBudget(c.name)
-        CustomCategories.remove(c); saveCustomCategories()
+        CustomCategories.remove(c); publishCustomCategory(c)
         InternalAi.invalidate()
+    }
+
+    private suspend fun markCategoryDirty(c: Category) {
+        if (sync.enabled) dao.markDirtyByCategory(c.name, System.currentTimeMillis())
+    }
+
+    /** Vlastná kategória prišla z domácnosti – zapracuje ju a vyrieši prípadný konflikt slotov. */
+    override suspend fun applyCustomCategory(slotName: String, json: String?) {
+        val slot = Category.entries.firstOrNull { it.name == slotName && it.isCustom } ?: return
+        val local = CustomCategories.def(slot)
+        if (json == null) {   // kategóriu niekto zmazal
+            if (local != null) {
+                dao.clearCategory(slot.name); dao.deleteRulesFor(slot.name); dao.deleteAiExamplesFor(slot.name); dao.deleteBudget(slot.name)
+                CustomCategories.remove(slot); InternalAi.invalidate()
+            }
+            persistCats(); return
+        }
+        val remote = CustomCategories.parseDef(slotName, json) ?: return
+        when (CustomCategories.resolve(local, remote)) {
+            CustomCategories.Resolution.Accept, CustomCategories.Resolution.MergeLocalIntoRemote -> CustomCategories.put(remote)
+            CustomCategories.Resolution.KeepLocal -> {
+                if (sync.enabled && local != null) sync.queue("customcat", slot.name, CustomCategories.defToJson(local))
+                persistCats(); return
+            }
+            CustomCategories.Resolution.RelocateLocal -> {
+                val l = local!!
+                val free = CustomCategories.freeSlot(except = slot)
+                val target = free ?: Category.INE
+                dao.moveCategory(slot.name, target.name)
+                markCategoryDirty(target)
+                if (free != null) {
+                    CustomCategories.put(l.copy(slot = free))
+                    if (sync.enabled) sync.queue("customcat", free.name, CustomCategories.defToJson(l.copy(slot = free)))
+                }
+                CustomCategories.put(remote)
+            }
+        }
+        // rovnaký názov v inom slote → zlúčiť do staršej kategórie
+        for (d in CustomCategories.all) {
+            if (d.slot == slot || d.id == remote.id || !d.label.trim().equals(remote.label.trim(), ignoreCase = true)) continue
+            if (remote.createdAt < d.createdAt || (remote.createdAt == d.createdAt && remote.id < d.id)) {
+                dao.moveCategory(d.slot.name, slot.name)
+                markCategoryDirty(slot)
+                CustomCategories.remove(d.slot)
+                if (sync.enabled) sync.queue("customcat", d.slot.name, null)
+            }
+        }
+        InternalAi.invalidate()
+        persistCats()
+        if (sync.enabled) sync.schedule()
     }
 
     /** Zaznamená úpravu bločku na odoslanie ostatným členom. */

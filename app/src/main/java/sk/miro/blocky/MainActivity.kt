@@ -31,6 +31,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import sk.miro.blocky.ui.*
+import sk.miro.blocky.ui.Text
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     REPORT("report", "Prehľad", Icons.Default.BarChart),

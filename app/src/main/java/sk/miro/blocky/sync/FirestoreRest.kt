@@ -116,9 +116,11 @@ class FirestoreRest(
     }
 
     /** Zápis dokumentu so serverovým časom v poli updatedAt. [mustNotExist] = len vytvoriť. */
-    fun writeDoc(path: String, fields: JSONObject, mustNotExist: Boolean = false, stamp: Boolean = true): JSONObject =
+    fun writeDoc(path: String, fields: JSONObject, mustNotExist: Boolean = false, stamp: Boolean = true,
+                 mask: List<String>? = null): JSONObject =
         JSONObject().apply {
             put("update", JSONObject().put("name", "$dbPrefix/$path").put("fields", fields))
+            if (mask != null) put("updateMask", JSONObject().put("fieldPaths", JSONArray(mask)))
             if (stamp) put("updateTransforms", JSONArray().put(
                 JSONObject().put("fieldPath", "updatedAt").put("setToServerValue", "REQUEST_TIME")))
             if (mustNotExist) put("currentDocument", JSONObject().put("exists", false))

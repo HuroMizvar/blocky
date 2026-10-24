@@ -382,6 +382,12 @@ abstract class BlockyDao {
     @Query("DELETE FROM category_rules WHERE category = :category")
     abstract suspend fun deleteRulesFor(category: String)
 
+    @Query("UPDATE receipts SET addedBy = :name, dirty = 1, editedAt = :at WHERE addedByUid = :uid")
+    abstract suspend fun renameMine(uid: String, name: String, at: Long)
+
+    @Query("UPDATE receipts SET dirty = 1, editedAt = :at WHERE id IN (SELECT receiptDbId FROM items WHERE category = :category)")
+    abstract suspend fun markDirtyByCategory(category: String, at: Long)
+
     // presun kategórie (zlúčenie vlastných kategórií pri vstupe do domácnosti)
     @Query("UPDATE items SET category = :to WHERE category = :from")
     abstract suspend fun moveItemsCategory(from: String, to: String)

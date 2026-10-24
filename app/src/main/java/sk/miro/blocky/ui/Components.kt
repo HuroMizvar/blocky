@@ -39,6 +39,39 @@ import java.time.format.TextStyle as JTextStyle
 import java.util.Locale
 
 val SK = Locale.forLanguageTag("sk-SK")
+private val EN = Locale.forLanguageTag("en-GB")
+/** jazyk pre názvy mesiacov a dní */
+fun uiLocale(): Locale = if (sk.miro.blocky.domain.I18n.english) EN else SK
+
+/**
+ * Text s prekladom: v celom balíku ui sa namiesto material3.Text použije tento (rovnaké parametre),
+ * takže sa preloží každý text v aplikácii. Názvy položiek z bločkov v slovníku nie sú, ostanú bez zmeny.
+ */
+@Composable
+fun Text(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    fontSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
+    fontStyle: androidx.compose.ui.text.font.FontStyle? = null,
+    fontWeight: FontWeight? = null,
+    fontFamily: androidx.compose.ui.text.font.FontFamily? = null,
+    letterSpacing: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
+    textDecoration: androidx.compose.ui.text.style.TextDecoration? = null,
+    textAlign: androidx.compose.ui.text.style.TextAlign? = null,
+    lineHeight: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
+    overflow: androidx.compose.ui.text.style.TextOverflow = androidx.compose.ui.text.style.TextOverflow.Clip,
+    softWrap: Boolean = true,
+    maxLines: Int = Int.MAX_VALUE,
+    minLines: Int = 1,
+    style: androidx.compose.ui.text.TextStyle = androidx.compose.material3.LocalTextStyle.current
+) = androidx.compose.material3.Text(
+    sk.miro.blocky.domain.I18n.tr(text), modifier, color, fontSize, fontStyle, fontWeight, fontFamily, letterSpacing,
+    textDecoration, textAlign, lineHeight, overflow, softWrap, maxLines, minLines, null, style
+)
+
+/** preklad textu mimo Text (napr. popis ikony) */
+fun t(s: String): String = sk.miro.blocky.domain.I18n.tr(s)
 
 /** Paleta smeru A – „Svetlý a pokojný“. */
 object Pal {
@@ -99,10 +132,10 @@ fun BlockyTheme(content: @Composable () -> Unit) =
 fun eur(c: Long) = Analytics.eur(c)
 
 fun monthLabel(m: YearMonth): String =
-    m.month.getDisplayName(JTextStyle.FULL_STANDALONE, SK).replaceFirstChar { it.uppercase() } + " ${m.year}"
+    m.month.getDisplayName(JTextStyle.FULL_STANDALONE, uiLocale()).replaceFirstChar { it.uppercase() } + " ${m.year}"
 
 fun monthName(m: YearMonth): String =
-    m.month.getDisplayName(JTextStyle.FULL_STANDALONE, SK).replaceFirstChar { it.uppercase() }
+    m.month.getDisplayName(JTextStyle.FULL_STANDALONE, uiLocale()).replaceFirstChar { it.uppercase() }
 
 /** Biela zaoblená karta – základný stavebný prvok dizajnu. */
 @Composable
@@ -191,6 +224,7 @@ fun catStyle(c: Category): CatStyle = when (c) {
     Category.ZALOHY -> CatStyle(Color(0xFFE3F1E8), Color(0xFF2E6B47), R.drawable.ph_recycle)
     Category.ZLAVY -> CatStyle(Color(0xFFE3F1E8), Color(0xFF1F7A4D), R.drawable.ph_tag)
     Category.INE -> CatStyle(Color(0xFFEFEFEA), Color(0xFF55605A), R.drawable.ph_dots_three)
+    Category.FIXNE -> CatStyle(Color(0xFFE6EAF2), Color(0xFF34466B), R.drawable.ph_house)
     Category.CUSTOM1, Category.CUSTOM2, Category.CUSTOM3, Category.CUSTOM4,
     Category.CUSTOM5, Category.CUSTOM6, Category.CUSTOM7, Category.CUSTOM8 -> {
         val d = CustomCategories.def(c)

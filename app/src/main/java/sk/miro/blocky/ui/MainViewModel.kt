@@ -39,10 +39,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val rows = repo.itemRows.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val state: StateFlow<DashboardState> =
-        combine(rows, repo.budgets, selectedMonth, _profile) { r, b, m, prof ->
+        combine(rows, repo.budgets, selectedMonth, _profile, FixedExpenses.list) { r, b, m, prof, fixed ->
             val budgets = b.associate { Category.fromName(it.category) to it.monthlyCents }
             val months = (Analytics.availableMonths(r) + Period.current()).distinct().sortedDescending()
-            val report = Analytics.report(r, m, budgets)
+            val report = Analytics.report(r, m, budgets, fixed = fixed)
             DashboardState(months, m, report, Analytics.recommendations(r, report, profile = prof), budgets, prof, loading = false)
         }.flowOn(Dispatchers.Default)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardState())
@@ -69,7 +69,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteReceipt(id: Long) = viewModelScope.launch { repo.deleteReceipt(id) }
 
     // ---------- Vlastné kategórie ----------
-    private val _catsVersion get() = repo.customCatsVersion
     /** mení sa pri každej zmene vlastných kategórií – obrazovky sa prekreslia */
     val catsVersion: StateFlow<Int> get() = repo.customCatsVersion
 
@@ -82,22 +81,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun createCustomCategory(label: String, icon: String, color: Int): Category? {
-        val c = CustomCategories.create(label, icon, color) ?: return null
-        _catsVersion.value++
-        viewModelScope.launch { repo.saveCustomCategories() }
+        val c = repo.createCustomCategoryNow(label, icon, color) ?: return null
+        viewModelScope.launch { repo.publishCreated(c) }
         return c
     }
 
-    fun updateCustomCategory(c: Category, label: String, icon: String, color: Int) {
-        CustomCategories.update(c, label, icon, color)
-        _catsVersion.value++
-        viewModelScope.launch { repo.saveCustomCategories() }
-    }
+    fun updateCustomCategory(c: Category, label: String, icon: String, color: Int) =
+        viewModelScope.launch { repo.updateCustomCategory(c, label, icon, color) }
 
-    fun deleteCustomCategory(c: Category) = viewModelScope.launch {
-        repo.deleteCustomCategory(c)
-        _catsVersion.value++
-    }
+    fun deleteCustomCategory(c: Category) = viewModelScope.launch { repo.deleteCustomCategory(c) }
     fun updateManual(id: Long, merchant: String, cents: Long, c: Category) =
         viewModelScope.launch { repo.updateManual(id, merchant, cents, c) }
 
@@ -230,6 +222,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return AiExport.build(rows.value, st.budgets, st.profile, st.recommendations, options)
     }
 
+    // ---------- Jazyk ----------
+    fun setEnglish(on: Boolean) { repo.english = on }
+
+    // ---------- Fixné výdavky ----------
+    val fixedExpenses: StateFlow<List<FixedExpense>> = FixedExpenses.list
+    fun saveFixed(e: FixedExpense) = viewModelScope.launch { repo.saveFixed(e) }
+    fun deleteFixed(id: String) = viewModelScope.launch { repo.deleteFixed(id) }
+
     // ---------- Profil domácnosti ----------
     fun setProfile(p: HouseholdProfile) {
         val periodChanged = p.payDay != Period.payDay
@@ -276,6 +276,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (!repo.sync.syncNow()) throw Exception(HouseholdSync.status.value.error ?: "Synchronizácia zlyhala")
     }
     fun syncSoon() = repo.sync.schedule()
+
+    val isAdmin: Boolean get() = repo.sync.isAdmin
+    fun adminKey(): Invite? = repo.sync.adminKey()
+    fun renameMember(name: String) = syncAction("Meno je zmenené aj pri vašich bločkoch.") { repo.sync.rename(name.trim()) }
+    fun removeMember(m: Member) = syncAction("${m.name} bol(a) odstránený(á) z domácnosti.") { repo.sync.removeMember(m) }
+    fun rotateHouseholdKey() = syncAction("Domácnosť má nový kľúč. Ostatných členov pozvite znova novým QR kódom – " +
+        "starý kľúč (aj v stratenom telefóne) už nefunguje.") { repo.sync.rotateKey() }
 
     // ---------- Zaraďovanie pomocou AI ----------
     private val _ai = MutableStateFlow(repo.aiEnabled)
@@ -405,9 +412,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun enableAutoBackup(tree: Uri, folderName: String?, password: CharArray) = viewModelScope.launch {
+    private val _backupPwd = MutableStateFlow(Backup.savedPassword(app))
+    /** heslo záloh (zobrazí sa po ťuknutí na oko) */
+    val backupPassword: StateFlow<String?> = _backupPwd
+    fun setBackupPassword(p: CharArray) { Backup.setPassword(getApplication(), p); _backupPwd.value = String(p) }
+
+    fun enableAutoBackup(tree: Uri, folderName: String?) = viewModelScope.launch {
         try {
-            Backup.enableAuto(getApplication(), tree, folderName, password)
+            Backup.enableAuto(getApplication(), tree, folderName)
             _autoBackup.value = Backup.autoState(getApplication())
             _backupBusy.value = true
             Backup.runAuto(getApplication())   // prvá záloha hneď

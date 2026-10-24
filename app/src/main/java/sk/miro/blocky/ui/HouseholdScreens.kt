@@ -57,10 +57,15 @@ fun HouseholdSection(vm: MainViewModel) {
     var showInvite by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var rename by remember { mutableStateOf(false) }
+    var removeWho by remember { mutableStateOf<sk.miro.blocky.sync.Member?>(null) }
+    var showAdminKey by remember { mutableStateOf(false) }
+    var confirmRotate by remember { mutableStateOf(false) }
     LaunchedEffect(st.enabled) { if (st.enabled) vm.refreshMembers() }
 
     SectionTitle("Spoločná domácnosť")
     if (!st.enabled) {
+        st.error?.let { Text(it, Modifier.padding(bottom = 8.dp), fontSize = 13.sp, color = Pal.Amber) }
         BCard(padding = PaddingValues(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Groups, null, tint = Pal.Green, modifier = Modifier.size(28.dp))
@@ -91,15 +96,19 @@ fun HouseholdSection(vm: MainViewModel) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Lock, null, tint = Pal.Green, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Ste v domácnosti ako ${st.memberName ?: "?"}", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("Ste v domácnosti ako ${st.memberName ?: "?"}", Modifier.weight(1f), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                TextButton(onClick = { rename = true }) { Text("Zmeniť meno") }
             }
+            if (vm.isAdmin) Text("Ste správca domácnosti – môžete odstraňovať členov.", fontSize = 12.sp, color = Pal.Green)
             Spacer(Modifier.height(10.dp))
             Text("Členovia (${members.size}/${HouseholdSync.MAX_MEMBERS})", fontSize = 13.sp, color = Pal.Muted, fontWeight = FontWeight.SemiBold)
             members.forEach { m ->
                 Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                     MemberDot(m.name, 26)
                     Spacer(Modifier.width(10.dp))
-                    Text(m.name + if (m.me) " (toto zariadenie)" else "", fontSize = 14.sp)
+                    Text(m.name + if (m.me) " (toto zariadenie)" else "", Modifier.weight(1f), fontSize = 14.sp)
+                    if (m.admin) Tag("správca", Pal.Green, Pal.GreenSoft)
+                    if (vm.isAdmin && !m.me) TextButton(onClick = { removeWho = m }) { Text("Odstrániť", color = Pal.Red) }
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -120,11 +129,37 @@ fun HouseholdSection(vm: MainViewModel) {
                 OutlinedButton(onClick = vm::syncNow, enabled = !busy, shape = RoundedCornerShape(14.dp)) { Text("Synchronizovať") }
             }
             Spacer(Modifier.height(4.dp))
+            if (vm.isAdmin) {
+                HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Pal.Track)
+                Text("Kľúč správcu", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Uložte si ho (správca hesiel, vytlačený papier). Ak stratíte telefón, nový telefón sa ním pridá " +
+                    "do domácnosti znova ako správca – naskenujte ho skenerom bločkov alebo vložte ako kód pozvánky.",
+                    fontSize = 12.sp, color = Pal.Muted, lineHeight = 16.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { showAdminKey = true }, shape = RoundedCornerShape(14.dp)) { Text("Kľúč správcu") }
+                    TextButton(onClick = { confirmRotate = true }) { Text("Vymeniť kľúč domácnosti", color = Pal.Red) }
+                }
+            }
             TextButton(onClick = { confirmLeave = true }) { Text("Odísť z domácnosti") }
             TextButton(onClick = { confirmDelete = true }) { Text("Zmazať údaje domácnosti zo servera", color = Pal.Red) }
         }
     }
 
+    if (rename) NameDialog("Zmeniť meno", "Nové meno uvidia ostatní členovia aj pri bločkoch, ktoré ste už nahrali.",
+        "Uložiť", initial = st.memberName ?: "", onDismiss = { rename = false }) { vm.renameMember(it); rename = false }
+    removeWho?.let { m ->
+        ConfirmDialog("Odstrániť ${m.name}?",
+            "Člen sa pri najbližšej synchronizácii odpojí. Bločky, ktoré nahral, ostanú v domácnosti. " +
+                "Ak ide o stratený alebo ukradnutý telefón, radšej použite Vymeniť kľúč domácnosti.",
+            "Odstrániť", danger = true, onDismiss = { removeWho = null }) { vm.removeMember(m); removeWho = null }
+    }
+    if (confirmRotate) ConfirmDialog("Vymeniť kľúč domácnosti?",
+        "Použite pri strate alebo krádeži telefónu. Domácnosť sa založí znova s novým kľúčom a všetkými bločkami z tohto zariadenia. " +
+            "Starý kľúč prestane fungovať – aj v stratenom telefóne. Ostatní členovia sa musia pridať znova novou pozvánkou. " +
+            "Nový kľúč správcu si potom znova uložte.",
+        "Vymeniť", danger = true, onDismiss = { confirmRotate = false }) { confirmRotate = false; vm.rotateHouseholdKey() }
+    if (showAdminKey) vm.adminKey()?.let { KeyDialog("Kľúč správcu", it.encode(),
+        "S týmto kľúčom má nový telefón plný prístup k domácnosti ako správca. Nikomu ho neposielajte, uložte ho len pre seba.") { showAdminKey = false } }
     if (askName) NameDialog("Založiť domácnosť", "Vaše meno vidia ostatní členovia pri bločkoch, ktoré nahráte.",
         "Založiť", onDismiss = { askName = false }) { vm.createHousehold(it); askName = false }
     if (pasteCode) PasteInviteDialog(onDismiss = { pasteCode = false }) { inv, name -> pasteCode = false; vm.joinHousehold(inv, name) }
@@ -169,8 +204,8 @@ private fun BusyDialog(content: @Composable () -> Unit) =
     androidx.compose.ui.window.Dialog(onDismissRequest = {}) { content() }
 
 @Composable
-private fun NameDialog(title: String, text: String, confirm: String, onDismiss: () -> Unit, onOk: (String) -> Unit) {
-    var name by remember { mutableStateOf("") }
+private fun NameDialog(title: String, text: String, confirm: String, initial: String = "", onDismiss: () -> Unit, onOk: (String) -> Unit) {
+    var name by remember { mutableStateOf(initial) }
     AlertDialog(onDismissRequest = onDismiss, containerColor = Pal.Card,
         title = { Text(title) },
         text = {
@@ -193,7 +228,7 @@ private fun PasteInviteDialog(onDismiss: () -> Unit, onJoin: (Invite, String) ->
         title = { Text("Kód pozvánky") },
         text = {
             Column {
-                Text("Vložte kód, ktorý vám poslal člen domácnosti (začína „${Invite.PREFIX}“).", fontSize = 14.sp)
+                Text("Vložte kód, ktorý vám poslal člen domácnosti, alebo váš uložený kľúč správcu (začína „BLOCKY1“).", fontSize = 14.sp)
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(code, { code = it.trim() }, label = { Text("Kód") }, maxLines = 3,
                     isError = code.isNotEmpty() && inv == null)
@@ -231,6 +266,31 @@ private fun InviteDialog(invite: Invite, onDismiss: () -> Unit) {
                 val send = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, code) }
                 context.startActivity(Intent.createChooser(send, "Poslať kód pozvánky"))
             }) { Text("Poslať ako text") }
+        })
+}
+
+/** Zobrazí kľúč (text + QR) s možnosťou uložiť ho / poslať do správcu hesiel. */
+@Composable
+fun KeyDialog(title: String, code: String, warning: String, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val bmp = remember(code) { qrBitmap(code, 640) }
+    AlertDialog(onDismissRequest = onDismiss, containerColor = Pal.Card,
+        title = { Text(title) },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(warning, fontSize = 13.sp, color = Pal.Amber, lineHeight = 17.sp)
+                Spacer(Modifier.height(10.dp))
+                Image(bmp.asImageBitmap(), title, Modifier.size(220.dp).clip(RoundedCornerShape(12.dp)))
+                Spacer(Modifier.height(8.dp))
+                Text(code, fontSize = 10.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, lineHeight = 13.sp)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Hotovo", fontWeight = FontWeight.Bold) } },
+        dismissButton = {
+            TextButton(onClick = {
+                val send = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, code) }
+                context.startActivity(Intent.createChooser(send, title))
+            }) { Text("Uložiť / poslať") }
         })
 }
 

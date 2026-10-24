@@ -23,7 +23,7 @@ data class SyncStatus(
     val memberName: String? = null
 )
 
-data class Member(val uid: String, val name: String, val me: Boolean)
+data class Member(val uid: String, val name: String, val me: Boolean, val admin: Boolean = false)
 
 /**
  * Spoločná domácnosť: viac ľudí (max. 10) nahráva bločky do spoločných výdavkov.
@@ -37,10 +37,13 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
     interface Hooks {
         fun profileJson(): String
         fun applyProfileJson(json: String)
-        fun customCategoriesJson(): String
-        fun applyCustomCategoriesJson(json: String)
-        /** Zlúči vlastné kategórie domácnosti s vlastnými kategóriami tohto telefónu; vráti výsledok. */
-        suspend fun mergeCustomCategoriesJson(remote: String): String
+        /** vlastné kategórie tohto telefónu: slot → JSON */
+        fun customCategoryJsons(): Map<String, String>
+        /** vlastná kategória z domácnosti (null = zmazaná) */
+        suspend fun applyCustomCategory(slotName: String, json: String?)
+        /** fixné výdavky: id → JSON */
+        fun fixedJsons(): Map<String, String>
+        fun applyFixed(id: String, json: String?)
     }
 
     companion object {
@@ -71,6 +74,9 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
     }
 
     val enabled: Boolean get() = prefs.getString("hid", null) != null && prefs.getString("key", null) != null
+    /** toto zariadenie je správca domácnosti (pozná tajomstvo správcu) */
+    val isAdmin: Boolean get() = enabled && prefs.getString("adminSecret", null) != null
+    private val adminSecret: ByteArray? get() = prefs.getString("adminSecret", null)?.let { SyncCrypto.keyFromText(it) }
     val memberName: String? get() = prefs.getString("name", null)
     val myUid: String? get() = tokenStore.uid
     private val hid: String get() = prefs.getString("hid", null)!!
@@ -89,6 +95,9 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
 
     fun invite(): Invite? = if (!enabled) null else Invite(projectId, apiKey, hid, key)
 
+    /** Kľúč správcu: pozvánka + tajomstvo správcu. S ním sa nové zariadenie vráti do domácnosti ako správca. */
+    fun adminKey(): Invite? = if (!isAdmin) null else Invite(projectId, apiKey, hid, key, adminSecret)
+
     // ---------- založenie / pripojenie / odchod ----------
 
     suspend fun create(name: String) = withContext(Dispatchers.IO) {
@@ -100,7 +109,11 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
         r.commit(listOf(r.writeDoc("households/$h", JSONObject()
             .put("joinSecret", FirestoreRest.str(SyncCrypto.joinSecret(k)))
             .put("v", FirestoreRest.int(1)), mustNotExist = true)))
-        writeMember(r, h, k, name)
+        val secret = SyncCrypto.newKey()
+        prefs.edit().putString("adminSecret", SyncCrypto.keyToText(secret)).apply()
+        writeMember(r, h, k, name, admin = true)
+        r.commit(listOf(r.writeDoc("households/$h", JSONObject()
+            .put("adminHash", FirestoreRest.str(Invite.adminHash(secret, h))), mask = listOf("adminHash"))))
         saveMembership(BuildConfig.FB_PROJECT_ID, BuildConfig.FB_API_KEY, h, k, name)
         afterJoin(name, joining = false)
     }
@@ -118,19 +131,30 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
             runCatching { r.commit(listOf(r.deleteDoc("households/${invite.householdId}/members/${tokenStore.uid}"))) }
             throw SyncException("Domácnosť je plná (najviac $MAX_MEMBERS členov).")
         }
+        // kľúč správcu: overiť tajomstvo s odtlačkom na serveri
+        val adminOk = invite.adminSecret?.let { s ->
+            val hh = r.get("households/${invite.householdId}")?.let { FirestoreRest.fieldStr(it, "adminHash") }
+            hh != null && hh == Invite.adminHash(s, invite.householdId)
+        } ?: false
+        if (adminOk) {
+            prefs.edit().putString("adminSecret", SyncCrypto.keyToText(invite.adminSecret!!)).apply()
+            writeMember(r, invite.householdId, invite.key, name, admin = true)
+        }
         saveMembership(invite.projectId, invite.apiKey, invite.householdId, invite.key, name)
         afterJoin(name, joining = true)
     }
 
-    private fun writeMember(r: FirestoreRest, h: String, k: ByteArray, name: String) {
-        val info = JSONObject().put("name", name).put("joinedAt", System.currentTimeMillis()).toString()
+    private fun writeMember(r: FirestoreRest, h: String, k: ByteArray, name: String, admin: Boolean = isAdmin,
+                            joinedAt: Long = prefs.getLong("joinedAt", 0).takeIf { it > 0 } ?: System.currentTimeMillis()) {
+        prefs.edit().putLong("joinedAt", joinedAt).apply()
+        val info = JSONObject().put("name", name).put("joinedAt", joinedAt).put("admin", admin).toString()
         r.commit(listOf(r.writeDoc("households/$h/members/${tokenStore.uid}", JSONObject()
             .put("joinSecret", FirestoreRest.str(SyncCrypto.joinSecret(k)))
             .put("enc", FirestoreRest.str(SyncCrypto.encrypt(k, info))))))
     }
 
     private fun saveMembership(p: String, a: String, h: String, k: ByteArray, name: String) {
-        prefs.edit().putString("projectId", p).putString("apiKey", a).putString("hid", h)
+        prefs.edit().remove("removed").putString("projectId", p).putString("apiKey", a).putString("hid", h)
             .putString("key", SyncCrypto.keyToText(k)).putString("name", name)
             .remove("lastPullR").remove("lastPullK").remove("lastError").apply()
     }
@@ -155,7 +179,8 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
         dao.userMerchants().forEach { q("merchant", it.mkey, JSONObject().put("name", it.name).put("type", it.type).toString()) }
         dao.budgetList().forEach { q("budget", it.category, it.monthlyCents.toString()) }
         q("profile", "household", hooks.profileJson())
-        q("customcats", "all", hooks.customCategoriesJson())
+        hooks.customCategoryJsons().forEach { (slot, json) -> q("customcat", slot, json) }
+        hooks.fixedJsons().forEach { (id, json) -> q("fixed", id, json) }
     }
 
     /**
@@ -169,13 +194,9 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
         for (doc in r.list("$home/kv")) {
             val enc = FirestoreRest.fieldStr(doc, "enc") ?: continue
             val kv = runCatching { SyncPayload.kvFromJson(SyncCrypto.decrypt(k, enc)) }.getOrNull() ?: continue
-            if (kv.kind == "customcats") {
-                val merged = hooks.mergeCustomCategoriesJson(kv.value ?: "[]")
-                if (merged == (kv.value ?: "[]")) skip += "customcats:all"   // nič nové – netreba posielať
-            } else {
-                runCatching { applyKv(doc, k) }
-                skip += "${kv.kind}:${kv.key}"
-            }
+            runCatching { applyKv(doc, k) }
+            // vlastné kategórie sa zlúčia a pošlú znova; ostatné nastavenia domácnosti majú prednosť
+            if (kv.kind != "customcat" && kv.kind != "customcats" && kv.kind != "fixed") skip += "${kv.kind}:${kv.key}"
         }
         return skip
     }
@@ -208,6 +229,14 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
         resetLocal()
     }
 
+    /** Správca nás odstránil: odpojiť sa (bločky v telefóne ostanú). */
+    private suspend fun removedByAdmin() {
+        runCatching { val r = rest(); r.commit(listOf(r.deleteDoc("$home/members/${tokenStore.uid}"))) }
+        resetLocal()
+        prefs.edit().putString("lastError", "Správca domácnosti vás z domácnosti odstránil. Bločky ostali v tomto telefóne.").apply()
+        publish()
+    }
+
     private suspend fun resetLocal() {
         prefs.edit().clear().apply()
         dao.clearSyncIds(); dao.clearTombstones(); dao.clearOutbox()
@@ -220,11 +249,71 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
         val k = key
         rest().list("$home/members").map { d ->
             val id = FirestoreRest.docId(d)
-            val name = FirestoreRest.fieldStr(d, "enc")?.let {
-                runCatching { JSONObject(SyncCrypto.decrypt(k, it)).getString("name") }.getOrNull()
-            } ?: "?"
-            Member(id, name, id == tokenStore.uid)
-        }.sortedWith(compareBy({ !it.me }, { it.name }))
+            val info = FirestoreRest.fieldStr(d, "enc")?.let { runCatching { JSONObject(SyncCrypto.decrypt(k, it)) }.getOrNull() }
+            Member(id, info?.optString("name")?.ifBlank { null } ?: "?", id == tokenStore.uid, info?.optBoolean("admin") == true)
+        }.sortedWith(compareBy({ !it.me }, { !it.admin }, { it.name }))
+    }
+
+    // ---------- správca, meno, odstránenie členov ----------
+
+    /** Zmena mena člena – prepíše sa aj pri bločkoch, ktoré toto zariadenie nahralo. */
+    suspend fun rename(newName: String) = withContext(Dispatchers.IO) {
+        check(enabled)
+        val r = rest(); r.token()
+        writeMember(r, hid, key, newName)
+        prefs.edit().putString("name", newName).apply()
+        tokenStore.uid?.let { dao.renameMine(it, newName, System.currentTimeMillis()) }
+        publish()
+        syncNow()
+    }
+
+    /** Správca odstráni člena: zmaže jeho členstvo a pošle mu správu, aby sa odpojil. */
+    suspend fun removeMember(m: Member) = withContext(Dispatchers.IO) {
+        check(isAdmin) { "Členov môže odstrániť len správca domácnosti." }
+        val r = rest(); r.token()
+        queue("removed", m.uid, m.name)
+        r.commit(listOf(r.deleteDoc("$home/members/${m.uid}")))
+        syncNow()
+    }
+
+    /**
+     * Nový kľúč domácnosti (napr. po strate či krádeži telefónu): staré údaje na serveri sa zmažú
+     * a domácnosť sa založí znova s novým kľúčom; ostatní členovia sa pridajú novou pozvánkou.
+     */
+    suspend fun rotateKey() = withContext(Dispatchers.IO) {
+        check(isAdmin) { "Kľúč môže vymeniť len správca domácnosti." }
+        val name = memberName ?: "Správca"
+        deleteServerData()
+        create(name)
+    }
+
+    /**
+     * Domácnosti založené pred zavedením správcu: správcom sa stane člen, ktorý sa pridal ako prvý
+     * (zakladateľ). Volá sa pri synchronizácii, kým to nie je vyriešené.
+     */
+    private fun ensureAdmin(r: FirestoreRest) {
+        if (prefs.getBoolean("adminChecked", false)) return
+        val doc = r.get(home) ?: return
+        if (FirestoreRest.fieldStr(doc, "adminHash") != null) {
+            // ak náš kľúč správcu už neplatí, prestaneme byť správcom
+            val s = adminSecret
+            if (s != null && FirestoreRest.fieldStr(doc, "adminHash") != Invite.adminHash(s, hid))
+                prefs.edit().remove("adminSecret").apply()
+            prefs.edit().putBoolean("adminChecked", true).apply(); return
+        }
+        val k = key
+        val first = r.list("$home/members").mapNotNull { d ->
+            val info = FirestoreRest.fieldStr(d, "enc")?.let { runCatching { JSONObject(SyncCrypto.decrypt(k, it)) }.getOrNull() }
+            info?.let { FirestoreRest.docId(d) to it.optLong("joinedAt", Long.MAX_VALUE) }
+        }.minByOrNull { it.second }?.first
+        if (first != null && first == tokenStore.uid) {
+            val secret = SyncCrypto.newKey()
+            prefs.edit().putString("adminSecret", SyncCrypto.keyToText(secret)).apply()
+            r.commit(listOf(r.writeDoc(home, JSONObject().put("adminHash", FirestoreRest.str(Invite.adminHash(secret, hid))),
+                mask = listOf("adminHash"))))
+            writeMember(r, hid, k, memberName ?: "Správca", admin = true)
+        }
+        prefs.edit().putBoolean("adminChecked", true).apply()
     }
 
     // ---------- kontrola duplicity u ostatných členov ----------
@@ -256,6 +345,7 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
             val ok = try {
                 runOnce()
                 prefs.edit().putLong("lastSyncAt", System.currentTimeMillis()).remove("lastError").apply()
+                if (prefs.getBoolean("removed", false)) removedByAdmin()
                 true
             } catch (e: SyncException) {
                 retryAfterRejoin(e)
@@ -291,6 +381,7 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
         val r = rest()
         val k = key
         val uid = r.token().let { tokenStore.uid ?: "" }
+        runCatching { ensureAdmin(r) }
 
         // 1) zmazané bločky
         val tombs = dao.tombstones()
@@ -392,7 +483,15 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
                 if (cents == null || cents <= 0) dao.deleteBudget(kv.key) else dao.upsertBudget(BudgetEntity(kv.key, cents))
             }
             "profile" -> kv.value?.let { hooks.applyProfileJson(it) }
-            "customcats" -> kv.value?.let { hooks.applyCustomCategoriesJson(it) }
+            "removed" -> if (kv.key == tokenStore.uid) prefs.edit().putBoolean("removed", true).apply()
+            "customcat" -> hooks.applyCustomCategory(kv.key, kv.value)
+            "fixed" -> hooks.applyFixed(kv.key, kv.value)
+            // staršie verzie posielali celý zoznam naraz
+            "customcats" -> kv.value?.let { v ->
+                sk.miro.blocky.domain.CustomCategories.parse(v).values.forEach { d ->
+                    hooks.applyCustomCategory(d.slot.name, sk.miro.blocky.domain.CustomCategories.defToJson(d))
+                }
+            }
         }
     }
 

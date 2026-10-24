@@ -31,6 +31,8 @@ enum class Category(private val baseLabel: String, val essential: Boolean, val b
     /** Vratné zálohy – sledujú sa ZVLÁŠŤ, nezapočítavajú sa do výdavkov. */
     ZALOHY("Zálohy za fľaše a plechovky", true, null),
     ZLAVY("Zľavy", true, null),
+    /** hypotéka, úver, leasing, nájomné… – zadávajú sa v nastaveniach, nie z bločkov */
+    FIXNE("Fixné výdavky", true, null),
     INE("Iné", false, null),
 
     /** Vlastné kategórie používateľa – názov, ikonu a farbu určuje [CustomCategories]. */
@@ -45,7 +47,8 @@ enum class Category(private val baseLabel: String, val essential: Boolean, val b
 
     companion object {
         /** kategórie, ktoré sa zobrazujú (vstavané + vytvorené vlastné) */
-        val visible: List<Category> get() = entries.filter { it.active }
+        /** kategórie na výber pre položky (fixné výdavky sa zadávajú zvlášť) */
+        val visible: List<Category> get() = entries.filter { it.active && it != FIXNE }
         fun fromName(n: String): Category = entries.firstOrNull { it.name == n } ?: INE
         val FOOD = setOf(MASO, LAHODKY, MLIECNE, PECIVO, OVOCIE_ZELENINA, TRVANLIVE, MRAZENE_HOTOVE, NAPOJE, SLADKOSTI)
     }

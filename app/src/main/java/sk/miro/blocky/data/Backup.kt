@@ -130,11 +130,19 @@ object Backup {
         AutoState(it.getString("tree", null) != null, it.getString("folderName", null), it.getLong("lastAt", 0), it.getString("lastError", null))
     }
 
-    fun enableAuto(context: Context, tree: Uri, folderName: String?, password: CharArray) {
+    /** Heslo záloh uložené v telefóne (chránené Android Keystore) – používa sa pre každú zálohu. */
+    fun savedPassword(context: Context): String? =
+        cfg(context).getString("pwd", null)?.let { runCatching { String(unwrap(it), Charsets.UTF_8) }.getOrNull() }
+
+    fun setPassword(context: Context, password: CharArray) {
+        cfg(context).edit().putString("pwd", wrap(String(password).toByteArray(Charsets.UTF_8))).apply()
+    }
+
+    fun enableAuto(context: Context, tree: Uri, folderName: String?) {
         context.contentResolver.takePersistableUriPermission(tree,
             android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         cfg(context).edit().putString("tree", tree.toString()).putString("folderName", folderName)
-            .putString("pwd", wrap(String(password).toByteArray(Charsets.UTF_8))).remove("lastError").apply()
+            .remove("lastError").apply()
         val req = PeriodicWorkRequestBuilder<BackupWorker>(7, TimeUnit.DAYS)
             .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build()).build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(BackupWorker.NAME, ExistingPeriodicWorkPolicy.UPDATE, req)
@@ -146,7 +154,7 @@ object Backup {
             context.contentResolver.releasePersistableUriPermission(Uri.parse(tree),
                 android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         }
-        cfg(context).edit().clear().apply()
+        cfg(context).edit().remove("tree").remove("folderName").remove("lastAt").remove("lastError").apply()
         WorkManager.getInstance(context).cancelUniqueWork(BackupWorker.NAME)
     }
 
@@ -154,7 +162,7 @@ object Backup {
     suspend fun runAuto(context: Context) {
         val c = cfg(context)
         val tree = Uri.parse(c.getString("tree", null) ?: return)
-        val pwd = String(unwrap(c.getString("pwd", null) ?: return), Charsets.UTF_8).toCharArray()
+        val pwd = (savedPassword(context) ?: return).toCharArray()
         try {
             val bytes = create(context, pwd)
             val cr = context.contentResolver

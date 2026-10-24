@@ -100,6 +100,15 @@ fun ReportScreen(
                             if (good) Pal.Green else Pal.Amber, if (good) Pal.GreenSoft else Pal.AmberSoft)
                     }
                 }
+                if (r.fixedCents > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("S fixnými výdavkami", Modifier.weight(1f), fontSize = 14.sp, color = Pal.Muted, fontWeight = FontWeight.SemiBold)
+                        Text(eur(r.totalWithFixedCents), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                    Text("fixné ${eur(r.fixedCents)}: " + r.fixedPayments.joinToString(", ") { it.expense.name },
+                        fontSize = 12.sp, color = Pal.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
                 Spacer(Modifier.height(12.dp))
                 if (budgetSum > 0) {
                     ProgressTrack(r.totalCents.toFloat() / budgetSum, if (r.totalCents > budgetSum) Pal.Red else Pal.Green, height = 10, track = Pal.Line)
@@ -145,20 +154,18 @@ fun ReportScreen(
                 // farebné rozdelenie výdavkov
                 SplitBar(cats.filter { it.cents > 0 }.map { catStyle(it.category).fg to it.share.toFloat() })
                 Spacer(Modifier.height(6.dp))
-                val max = cats.maxOfOrNull { maxOf(it.cents, it.budgetCents ?: 0L) } ?: 1L
+                val max = cats.filter { it.category != Category.FIXNE }.maxOfOrNull { maxOf(it.cents, it.budgetCents ?: 0L) } ?: 1L
                 cats.take(limit).forEach { c ->
-                    val bs = c.budgetState
-                    ListRow(
+                    if (c.category == Category.FIXNE) ListRow(
                         leading = { CatBadge(c.category, 40) },
                         title = c.category.label,
-                        subtitle = when (bs) {
-                            BudgetState.OVER -> "prekročený rozpočet ${eur(c.budgetCents ?: 0)}"
-                            BudgetState.RISK -> "hrozí prekročenie · rozpočet ${eur(c.budgetCents ?: 0)}"
-                            else -> "${Math.round(c.share * 100)} % výdavkov" + (c.budgetCents?.let { " · rozpočet ${eur(it)}" } ?: "")
-                        },
+                        subtitle = "${r.fixedPayments.size}× · mimo bežných výdavkov · Nastavenia → Domácnosť",
+                        amount = c.cents
+                    ) else ListRow(
+                        leading = { CatBadge(c.category, 40) },
+                        title = c.category.label,
+                        subtitle = "${Math.round(c.share * 100)} % výdavkov" + (c.budgetCents?.let { " · rozpočet ${eur(it)}" } ?: ""),
                         amount = c.cents,
-                        amountColor = when (bs) { BudgetState.OVER -> Pal.Red; BudgetState.RISK -> Pal.Amber; else -> Pal.Ink },
-                        highlight = budgetHighlight(bs),
                         trend = deltaPct(c.cents, c.avg3Cents),
                         bar = c.cents.toFloat() / max to catStyle(c.category).fg,
                         onClick = { onOpenItems("cat", c.category.name, r.month) }

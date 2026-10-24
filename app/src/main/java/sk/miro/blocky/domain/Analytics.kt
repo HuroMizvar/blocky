@@ -78,8 +78,14 @@ data class MonthReport(
     val depositPaidCents: Long = 0,
     val depositReturnedCents: Long = 0,
     /** potraviny a nápoje (bez reštaurácií) */
-    val foodCents: Long = 0
-)
+    val foodCents: Long = 0,
+    /** fixné výdavky (hypotéka, úver…) zaplatené v období – NIE sú v totalCents */
+    val fixedCents: Long = 0,
+    val fixedPayments: List<FixedPayment> = emptyList()
+) {
+    /** minuté spolu aj s fixnými výdavkami */
+    val totalWithFixedCents: Long get() = totalCents + fixedCents
+}
 
 enum class Severity { HIGH, MEDIUM, INFO }
 
@@ -110,7 +116,8 @@ object Analytics {
         rows: List<ItemRow>,
         month: YearMonth,
         budgets: Map<Category, Long>,
-        today: LocalDate = LocalDate.now(zone)
+        today: LocalDate = LocalDate.now(zone),
+        fixed: List<FixedExpense> = emptyList()
     ): MonthReport {
         val dep = Category.ZALOHY.name
         val allCur = rows.filter { monthOf(it.issuedAt) == month }
@@ -161,9 +168,14 @@ object Analytics {
             else categories.map { it.copy(projectedCents = (it.cents.toDouble() / dayIdx * len).roundToLong()) }
 
         val food = cur.filter { Category.fromName(it.category) in Category.FOOD }.sumOf { it.priceCents }
+        val fixedPay = FixedExpenses.payments(fixed, month, today)
+        val fixedCents = fixedPay.sumOf { it.expense.cents }
+        // fixné výdavky sú vždy posledné – zaujímavejšie sú bežné výdavky
+        val withFixed = if (fixedCents > 0) categoriesP.filter { it.category != Category.FIXNE } +
+            CategoryStat(Category.FIXNE, fixedCents, 0.0, 0, null, null) else categoriesP
         return MonthReport(month, total, prev.sumOf { it.priceCents }, avg3Total,
-            allCur.map { it.receiptDbId }.distinct().size, categoriesP, merchants, topItems, projected,
-            depositPaid, depositReturned, food)
+            allCur.map { it.receiptDbId }.distinct().size, withFixed, merchants, topItems, projected,
+            depositPaid, depositReturned, food, fixedCents, fixedPay)
     }
 
     fun recommendations(
@@ -176,7 +188,7 @@ object Analytics {
         val month = report.month
         val cur = rows.filter { monthOf(it.issuedAt) == month }
         if (cur.isEmpty()) return emptyList()
-        val skip = setOf(Category.ZALOHY, Category.ZLAVY)
+        val skip = setOf(Category.ZALOHY, Category.ZLAVY, Category.FIXNE)
 
         // 1) Rozpočty
         for (c in report.categories) {

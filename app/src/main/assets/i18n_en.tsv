@@ -1,0 +1,525 @@
+# Bločky – anglický preklad (slovensky text → anglicky). {} = premenná časť. Generuje tools/i18n/gen.py
+Predchádzajúci mesiac	Previous month
+Nasledujúci mesiac	Next month
+Čo je to za prevádzku?	What kind of shop is this?
+Podľa toho správne zaradím tento aj ďalšie bločky z nej. Opýtam sa len raz.	This helps me categorise this and future receipts from it. I will ask only once.
+Neskôr	Later
+Prekročené	Exceeded
+Pozor	Warning
+Tip	Tip
+Potraviny a nápoje	Food & drinks
+Domácnosť a zdravie	Home & health
+Mimo domu	Out & about
+Ostatné	Other
+Vlastné	Custom
+Zaradiť do kategórie	Assign category
+Zavrieť	Close
+Zapamätať pre všetky položky s týmto názvom	Remember for all items with this name
+Nová kategória	New category
+Upraviť kategóriu	Edit category
+Názov (napr. Deti, Darčeky, Chalupa)	Name (e.g. Kids, Gifts, Cottage)
+Farba	Colour
+Ikona	Icon
+Zmazať	Delete
+Uložiť	Save
+Zmazať kategóriu?	Delete category?
+Položky z tejto kategórie sa presunú do „Iné“.	Items in this category will move to “Other”.
+Zrušiť	Cancel
+Zdroj údajov: služba eKasa – Over doklad, Finančná správa SR	Data source: eKasa – Over doklad service, Financial Administration of the Slovak Republic
+Bločky nie sú aplikáciou Finančnej správy SR ani iného štátneho orgánu a nekonajú v ich mene.	Bločky is not an app of the Slovak Financial Administration or any other government body and does not act on their behalf.
+Spoločná domácnosť	Shared household
+Spoločné výdavky pre celú rodinu	Shared spending for the whole family
+Bločky môže nahrávať až {} členov – vy, partner, deti, aj váš tablet.	Up to {} members can add receipts – you, your partner, kids, even your tablet.
+Pri každom bločku vidno, kto ho nahral.	Each receipt shows who added it.
+Ak niekto naskenuje bloček, ktorý už nahral iný člen, aplikácia upozorní.	If someone scans a receipt another member already added, the app warns them.
+Údaje sa šifrujú v telefóne. Server (Google Firebase, EÚ) vidí len zašifrovaný text.	Data is encrypted on the phone. The server (Google Firebase, EU) only sees encrypted text.
+Je to voliteľné – bez domácnosti ostáva všetko len v tomto telefóne.	It is optional – without a household everything stays on this phone only.
+Server zatiaľ nie je nastavený, preto sa domácnosť nedá založiť (pripojiť sa cez pozvánku funguje). Postup je v návode.	The server is not set up yet, so a household cannot be created (joining by invite works). See the guide.
+Založiť domácnosť	Create household
+Pridať sa k existujúcej: naskenujte pozývací QR kód člena domácnosti bežným skenerom bločkov.	To join an existing one, scan a member’s invite QR code with the normal receipt scanner.
+Vložiť kód pozvánky	Enter invite code
+Ste v domácnosti ako {}	You are in the household as {}
+Zmeniť meno	Change name
+Ste správca domácnosti – môžete odstraňovať členov.	You are the household admin – you can remove members.
+Členovia ({}/{})	Members ({}/{})
+ (toto zariadenie)	 (this device)
+správca	admin
+Odstrániť	Remove
+Synchronizované {}	Synced {}
+Zatiaľ nesynchronizované	Not synced yet
+Pozvať člena	Invite member
+Synchronizovať	Sync
+Kľúč správcu	Admin key
+Uložte si ho (správca hesiel, vytlačený papier). Ak stratíte telefón, nový telefón sa ním pridá do domácnosti znova ako správca – naskenujte ho skenerom bločkov alebo vložte ako kód pozvánky.	Keep it safe (password manager, printed copy). If you lose your phone, a new phone rejoins the household as admin with it – scan it with the receipt scanner or enter it as an invite code.
+Vymeniť kľúč domácnosti	Replace household key
+Odísť z domácnosti	Leave household
+Zmazať údaje domácnosti zo servera	Delete household data from server
+Nové meno uvidia ostatní členovia aj pri bločkoch, ktoré ste už nahrali.	Other members will see the new name, also on receipts you already added.
+Odstrániť {}?	Remove {}?
+Člen sa pri najbližšej synchronizácii odpojí. Bločky, ktoré nahral, ostanú v domácnosti. Ak ide o stratený alebo ukradnutý telefón, radšej použite Vymeniť kľúč domácnosti.	The member will be disconnected at the next sync. Receipts they added stay in the household. For a lost or stolen phone, use Replace household key instead.
+Vymeniť kľúč domácnosti?	Replace household key?
+Použite pri strate alebo krádeži telefónu. Domácnosť sa založí znova s novým kľúčom a všetkými bločkami z tohto zariadenia. Starý kľúč prestane fungovať – aj v stratenom telefóne. Ostatní členovia sa musia pridať znova novou pozvánkou. Nový kľúč správcu si potom znova uložte.	Use this if a phone is lost or stolen. The household is recreated with a new key and all receipts from this device. The old key stops working – also on the lost phone. Other members must rejoin with a new invite. Save the new admin key afterwards.
+Vymeniť	Replace
+S týmto kľúčom má nový telefón plný prístup k domácnosti ako správca. Nikomu ho neposielajte, uložte ho len pre seba.	With this key a new phone gets full admin access to the household. Do not send it to anyone, keep it only for yourself.
+Vaše meno vidia ostatní členovia pri bločkoch, ktoré nahráte.	Other members see your name on receipts you add.
+Založiť	Create
+Odísť z domácnosti?	Leave household?
+Synchronizácia sa vypne. Všetky bločky ostanú v tomto zariadení, údaje na serveri ostanú ostatným členom.	Sync will be turned off. All receipts stay on this device; data on the server stays for the other members.
+Odísť	Leave
+Zmazať údaje zo servera?	Delete data from server?
+Zo servera sa zmažú všetky bločky a nastavenia domácnosti pre všetkých členov a domácnosť zanikne. V jednotlivých zariadeniach bločky ostanú. Nedá sa to vrátiť.	All household receipts and settings will be deleted from the server for all members and the household will end. Receipts stay on each device. This cannot be undone.
+Pridať sa k domácnosti	Join household
+Naskenovali ste pozvánku do spoločnej domácnosti. Vaše bločky sa spoja s bločkami ostatných členov. Zadajte meno, ktoré uvidia pri vašich bločkoch.	You scanned an invite to a shared household. Your receipts will be merged with the other members’ receipts. Enter the name they will see on your receipts.
+Pridať sa	Join
+Pracujem… môže to chvíľu trvať.	Working… this may take a moment.
+Meno (napr. Miro, Jana)	Name (e.g. Miro, Jane)
+Kód pozvánky	Invite code
+Vložte kód, ktorý vám poslal člen domácnosti, alebo váš uložený kľúč správcu (začína „BLOCKY1“).	Enter the code a household member sent you, or your saved admin key (starts with “BLOCKY1”).
+Kód	Code
+Vaše meno	Your name
+Nový člen nainštaluje aplikáciu Bločky a týmto QR kódom sa pridá – stačí ho naskenovať bežným skenerom bločkov.	The new member installs Bločky and joins with this QR code – just scan it with the normal receipt scanner.
+Pozývací QR kód	Invite QR code
+Kód obsahuje kľúč domácnosti – kto ho má, vidí vaše spoločné výdavky. Ukazujte ho len členom. Uložte si ho aj ako zálohu: ak stratíte všetky zariadenia, novým telefónom sa ním vrátite k údajom.	The code contains the household key – anyone who has it can see your shared spending. Only show it to members. Keep it as a backup too: if you lose all devices, a new phone gets your data back with it.
+Hotovo	Done
+Poslať kód pozvánky	Send invite code
+Poslať ako text	Send as text
+Uložiť / poslať	Save / send
+Späť	Back
+{} {} · ťuknutím na položku zmeníte kategóriu	{} {} · tap an item to change its category
+ťuknutím na položku zmeníte kategóriu	tap an item to change its category
+Žiadne položky.	No items.
+Otvoriť bloček	Open receipt
+Neplatná pozvánka	Invalid invite
+QR kód je poškodený.	The QR code is damaged.
+Už ste v domácnosti	You are already in a household
+Najprv z nej odíďte v Nastaveniach, potom sa môžete pridať do inej.	Leave it in Settings first, then you can join another one.
+Tento bloček už máte!	You already have this receipt!
+Rovnaký bloček ste už naskenovali.	You already scanned this receipt.
+Namierte na QR kód eKasa na bločku.	Point the camera at the eKasa QR code on the receipt.
+Hľadám bloček v súbore…	Looking for a receipt in the file…
+Bloček sa nenašiel	No receipt found
+V súbore nie je QR kód eKasa. Pošlite PDF alebo obrázok e-bločku, nie len text e-mailu.	The file has no eKasa QR code. Share the PDF or image of the e-receipt, not just the email text.
+Pridané bločky: {}	Receipts added: {}
+Tieto bločky už máte	You already have these receipts
+Položky sa načítajú z eKasa na pozadí.	Items are loaded from eKasa in the background.
+Už uložené: {}	Already saved: {}
+Neplatné: {}	Invalid: {}
+Domácnosť je založená. Pozvite ďalších členov QR kódom.	Household created. Invite other members with the QR code.
+Ste v domácnosti. Bločky sa zosynchronizovali.	You are in the household. Receipts are synced.
+Odišli ste z domácnosti. Bločky ostali v tomto telefóne.	You left the household. Receipts stayed on this phone.
+Údaje domácnosti boli zo servera zmazané. V telefóne ostali.	Household data was deleted from the server. It stays on the phone.
+Synchronizácia zlyhala	Sync failed
+Meno je zmenené aj pri vašich bločkoch.	Name changed, also on your receipts.
+{} bol(a) odstránený(á) z domácnosti.	{} was removed from the household.
+Domácnosť má nový kľúč. Ostatných členov pozvite znova novým QR kódom – starý kľúč (aj v stratenom telefóne) už nefunguje.	The household has a new key. Invite the other members again with the new QR code – the old key (also on the lost phone) no longer works.
+Preraďujem bločky…	Re-categorising receipts…
+Vstavaná AI je zapnutá, bločky sú preradené.	Built-in AI is on, receipts are re-categorised.
+AI je vypnutá, zaraďujú sa len pravidlá.	AI is off, only rules are used.
+Sťahujem AI do telefónu… (môže to trvať niekoľko minút)	Downloading AI to the phone… (may take a few minutes)
+AI telefónu sa nepodarilo stiahnuť.	Could not download the phone AI.
+AI telefónu zaradila {} položiek.	Phone AI categorised {} items.
+Hotovo – všetky bločky sú preradené (vaše ručné opravy ostali).	Done – all receipts are re-categorised (your manual corrections were kept).
+Súbor sa nedá zapísať.	Cannot write the file.
+Záloha je uložená. Heslo si dobre zapamätajte – bez neho sa záloha nedá obnoviť.	Backup saved. Remember the password – the backup cannot be restored without it.
+Zálohu sa nepodarilo uložiť: {}	Could not save the backup: {}
+Súbor sa nedá otvoriť.	Cannot open the file.
+Zálohu sa nepodarilo otvoriť.	Could not open the backup.
+Obnova sa nepodarila.	Restore failed.
+Automatická záloha je zapnutá. Prvá záloha je uložená v priečinku.	Automatic backup is on. The first backup is saved in the folder.
+Automatickú zálohu sa nepodarilo nastaviť: {}	Could not set up automatic backup: {}
+Generujem demo dáta…	Generating demo data…
+Nahraných {} demo bločkov (aktuálny + 3 predchádzajúce mesiace).	Loaded {} demo receipts (current + 3 previous months).
+Zmazaných {} demo bločkov.	Deleted {} demo receipts.
+Bloček naskenovaný	Receipt scanned
+Bloček sa nepodarilo načítať	Could not load the receipt
+Načítavam položky… Môžete skenovať ďalší alebo zavrieť aplikáciu.	Loading items… You can scan another one or close the app.
+Bez pripojenia.	Offline.
+ Položky načítam automaticky neskôr.	 I will load the items automatically later.
+Položky načítam automaticky neskôr.	I will load the items automatically later.
+Týždeň {} · {} – {}	Week {} · {} – {}
+Ručný záznam bločku	Manual receipt entry
+Bločky	Receipts
+Zatiaľ žiadne bločky	No receipts yet
+Naskenujte prvý bloček zeleným tlačidlom Skenuj dole.	Scan your first receipt with the green Scan button below.
+Hľadať obchod alebo položku…	Search shop or item…
+Vymazať	Clear
+Nič sa nenašlo.	Nothing found.
+Nájdené: {} {} · spolu {}	Found: {} {} · total {}
+Položky „{}“: {}× · spolu {}	Items “{}”: {}× · total {}
+Čaká na načítanie ({})	Waiting to load ({})
+Nepodarilo sa načítať	Could not load
+Načíta sa automaticky	Will load automatically
+Zadať ručne	Enter manually
+bloček	receipt
+bločky	receipts
+bločkov	receipts
+položka	item
+položky	items
+položiek	items
+ · ručne	 · manual
+ručne	manual
++ ďalšie {}	+ {} more
+upravený	edited
+Zmazať bloček	Delete receipt
+Zmeniť typ prevádzky	Change shop type
+Upraviť	Edit
+upravený bloček	edited receipt
+Započítané po úpravách · na bločku {}	Counted after edits · on receipt {}
+ · prečiarknuté {}	 · crossed out {}
+prečiarknuté {}	crossed out {}
+Na zľavách ste ušetrili {}	You saved {} on discounts
+{} {} · ťuknutím na položku zmeníte kategóriu alebo počet kusov, ikonou vpravo ju prečiarknete	{} {} · tap an item to change its category or quantity, cross it out with the icon on the right
+Nezapočítané – vrátené / reklamované	Not counted – returned / complaint
+ · upravené	 · edited
+upravené	edited
+ · AI telefónu	 · phone AI
+AI telefónu	phone AI
+na bločku {} · počet upravený	on receipt {} · quantity edited
+zľava −{} · pôvodne {}	discount −{} · originally {}
+Znova započítať	Count again
+Prečiarknuť – nezapočítať	Cross out – don’t count
+Upraviť ručný záznam	Edit manual entry
+Ručný záznam	Manual entry
+Zmazať bloček?	Delete receipt?
+Kategória – navrhla AI, skontrolujte	Category – suggested by AI, please check
+Kategória	Category
+Zmeniť	Change
+Koľko kusov ste naozaj zaplatili?	How many pieces did you actually pay for?
+Menej	Less
+Viac	More
+Započíta sa {}	Counted: {}
+ (na bločku {})	 (on receipt {})
+Nezapočítať do výdavkov	Don’t count in spending
+vrátené, reklamované, platil niekto iný	returned, complaint, someone else paid
+Obnoviť podľa bločku	Reset to receipt
+Rozpočty	Budgets
+Automatické rozpočty	Automatic budgets
+Navrhnem limity podľa celej vašej histórie – o niečo nižšie, ako zvyčajne míňate, aby ste ušetrili.	I will suggest limits based on your whole history – a bit lower than you usually spend, so you save.
+Nastaviť podľa môjho míňania	Set from my spending
+Mesačný limit na kategóriu. Prázdne pole = bez limitu. Prekročenie sa ukáže v tipoch.	Monthly limit per category. Empty = no limit. Exceeding it shows up in tips.
+Vlastné kategórie	Custom categories
+Zatiaľ žiadne. Vytvorte si napr. „Deti“, „Darčeky“ alebo „Chata“.	None yet. Create e.g. “Kids”, “Gifts” or “Cottage”.
+Návrh rozpočtov	Suggested budgets
+Na návrh je zatiaľ málo údajov. Skenujte bločky aspoň týždeň, potom to skúste znova.	Not enough data yet. Scan receipts for at least a week, then try again.
+Odhad z tohto mesiaca (zatiaľ nemáte celý mesiac).	Estimate from this month (no full month yet).
+Z histórie {} {}. Priemer → návrh na mesiac.	From {} {} of history. Average → monthly proposal.
+mesiaca	month
+mesiacov	months
+Ak rozpočty dodržíte, ušetríte asi {} mesačne ({} ročne).	If you keep to the budgets, you save about {} a month ({} a year).
+Použiť	Apply
+tento mesiac {}	this month {}
+ · prekročené	 · exceeded
+prekročené	exceeded
+ · hrozí prekročenie	 · at risk of exceeding
+hrozí prekročenie	at risk of exceeding
+Obchod / popis	Shop / description
+Pomôžte zaradiť {} {}	Help categorise {} {}
+prevádzku	shop
+prevádzky	shops
+Neviem, či ide o obchod, reštauráciu, pumpu… Ťuknite a vyberte.	I don’t know if it is a shop, restaurant, petrol station… Tap and choose.
+Zaradiť	Assign
+Načítavam…	Loading…
+Za tento mesiac zatiaľ nemáte žiadne bločky.	No receipts this month yet.
+Skenovať bloček	Scan receipt
+Minuté tento mesiac (bez záloh)	Spent this month (excl. deposits)
+Minuté v mesiaci (bez záloh)	Spent in the month (excl. deposits)
+{} % vs. min. mes.	{} % vs. last month
+S fixnými výdavkami	Incl. fixed expenses
+fixné {}: {}	fixed {}: {}
+fixné {}: 	fixed {}: 
+Rozpočet {}	Budget {}
+zostáva {}	{} left
+ · {} dní	 · {} days
+{} dní	{} days
+prekročené o {}	over by {}
+Nastaviť mesačný rozpočet	Set a monthly budget
+Priemerný nákup	Average purchase
+Odhad mesiaca	Month estimate
+Na deň	Per day
+Kategórie	Categories
+kategórie	categories
+{}× · mimo bežných výdavkov · Nastavenia → Domácnosť	{}× · outside regular spending · Settings → Household
+{} % výdavkov	{} % of spending
+ · rozpočet {}	 · budget {}
+rozpočet {}	budget {}
+Obchody	Shops
+{}× nákup · {}	{}× purchase · {}
+Najviac ste minuli za	You spent the most on
+Zálohy za fľaše a plechovky	Bottle & can deposits
+Na vrátenie čaká {}	{} waiting to be returned
+Všetko vrátené	All returned
+Zaplatené {} · vrátené {} · do výdavkov sa nepočítajú	Paid {} · returned {} · not counted in spending
+Zobraziť menej	Show less
+Zobraziť všetky {} ({})	Show all {} ({})
+tip na úsporu	saving tip
+tipy na úsporu	saving tips
+tipov na úsporu	saving tips
+Analýza pomocou AI	AI analysis
+Pripravím súhrn, skontrolujete ho a pošlete do AI aplikácie, ktorú si vyberiete	I prepare a summary, you check it and send it to an AI app of your choice
+Zatiaľ žiadne tipy	No tips yet
+Porovnania potrebujú aspoň 2–3 mesiace bločkov.	Comparisons need at least 2–3 months of receipts.
+Odhad mesačnej úspory	Estimated monthly saving
+až {}	up to {}
+súčet {} {} · môžu sa prekrývať	sum of {} {} · they may overlap
+Odhad úspory	Estimated saving
+Moja domácnosť	My household
+Počet ľudí v domácnosti	People in the household
+Z toho deti	Of which children
+Starám sa o niekoho (rodič, chorý blízky)	I care for someone (parent, sick relative)
+Máme domáce zviera	We have a pet
+Máme auto	We have a car
+O mne (voliteľné)	About me (optional)
+Napr. varím doma, šetrím na dovolenku, chcem menej míňať v reštauráciách…	E.g. I cook at home, I’m saving for a holiday, I want to spend less in restaurants…
+Text „O mne“ sa použije len v AI analýze – a len ak ju sami odošlete.	The “About me” text is used only in the AI analysis – and only if you send it yourself.
+Podľa toho upravím tipy, napr. potraviny na osobu, s deťmi vyšší limit na sladkosti, pri aute nehlásim tankovanie ako nárast.	I adjust tips accordingly, e.g. food per person, a higher sweets limit with kids, no fuel-increase alerts if you have a car.
+Aplikácia sama nič neodosiela. Nižšie je presne ten text, ktorý pošlete – súčty po kategóriách za posledné 3 mesiace, bez adries, IČO a ID bločkov. Po odoslaní platia podmienky súkromia zvolenej AI aplikácie.	The app sends nothing by itself. Below is exactly the text you will send – category totals for the last 3 months, without addresses, company IDs or receipt IDs. After sending, the privacy terms of the chosen AI app apply.
+Zahrnúť názvy obchodov	Include shop names
+Zahrnúť konkrétne položky	Include specific items
+Doplniť „Moja domácnosť“ a „O mne“ pre presnejšiu analýzu	Fill in “My household” and “About me” for a more accurate analysis
+Skopírované – vložte do AI aplikácie.	Copied – paste it into the AI app.
+Poslať do AI aplikácie	Send to AI app
+Poslať do AI…	Send to AI…
+Kopírovať	Copy
+Aplikácia potrebuje prístup ku kamere.	The app needs camera access.
+Povoliť kameru	Allow camera
+ · TESTOVACÍ REŽIM	 · TEST MODE
+TESTOVACÍ REŽIM	TEST MODE
+Vypnúť blesk	Turn off flash
+Zapnúť blesk	Turn on flash
+E-bloček z e-mailu (PDF / obrázok)	E-receipt from email (PDF / image)
+Prehľad	Overview
+Namierte na QR kód	Point at the QR code
+je v spodnej časti bločku	it is at the bottom of the receipt
+Skenovať ďalší	Scan next
+Pôvodný	Original
+Detail	Detail
+Nastavenia	Settings
+Domácnosť	Household
+Aktualizácie	Updates
+Súkromie a dáta	Privacy & data
+Nainštalovaná verzia: {} (build {})	Installed version: {} (build {})
+Lokálny build – aktualizácie z GitHubu sú vypnuté. Nainštalujte APK z GitHub Actions.	Local build – GitHub updates are off. Install the APK from GitHub Actions.
+Aplikáciu aktualizuje Obchod Google Play.	The app is updated by Google Play.
+Zdroj: github.com/{}	Source: github.com/{}
+Kontrolovať pri spustení	Check on start
+Aplikácia sa len opýta GitHubu na číslo najnovšej verzie. Žiadne vaše dáta neposiela.	The app only asks GitHub for the latest version number. It sends none of your data.
+Skontrolovať aktualizácie	Check for updates
+Máte najnovšiu verziu.	You have the latest version.
+Skontrolovať znova	Check again
+Skúsiť znova	Try again
+Dostupná nová verzia: build {}	New version available: build {}
+Stiahnuť a nainštalovať ({} MB)	Download and install ({} MB)
+Sťahujem build {}… {} %	Downloading build {}… {} %
+Build {} je stiahnutý.	Build {} is downloaded.
+Jednorazovo povoľte aplikácii Bločky inštalovať aplikácie (Nastavenia → Inštalovať neznáme aplikácie).	Allow Bločky to install apps once (Settings → Install unknown apps).
+Otvoriť povolenie	Open permission
+Nainštalovať	Install
+Testovací režim	Test mode
+Demo bločky v databáze: {}	Demo receipts in database: {}
+Nahrať demo dáta	Load demo data
+Zmazať demo	Delete demo
+Simulovaný eKasa server	Simulated eKasa server
+Skener prijme akýkoľvek QR kód a vytvorí náhodný demo nákup. Nevolá Finančnú správu.	The scanner accepts any QR code and creates a random demo purchase. It does not call the Financial Administration.
+Predvolené	Default
+Súkromie a vaše dáta	Privacy & your data
+Bez spoločnej domácnosti sú bločky, položky, rozpočty a profil uložené len v tomto telefóne.	Without a shared household, receipts, items, budgets and profile are stored only on this phone.
+Spoločná domácnosť je voliteľná. Údaje sa zašifrujú v telefóne a server (Google Firebase, EÚ) dostane len zašifrovaný text – kľúč majú iba členovia domácnosti.	The shared household is optional. Data is encrypted on the phone and the server (Google Firebase, EU) only receives encrypted text – only household members have the key.
+Bez Google účtu, bez reklám, bez analytiky a bez reklamného ID. Pre domácnosť sa vytvorí anonymný prístup bez mena a e-mailu.	No Google account, no ads, no analytics and no advertising ID. The household uses anonymous access without name or email.
+QR kód sa číta priamo v telefóne. Obraz z kamery sa nikam neposiela.	The QR code is read on the phone. The camera image is never sent anywhere.
+Kategórie a tipy počítajú pravidlá v aplikácii – žiadna umelá inteligencia a nič sa nepoužíva na jej trénovanie.	Categories and tips are calculated by rules in the app – nothing is used to train AI.
+Sieť sa používa len na: (1) načítanie položiek bločku z eKasa Finančnej správy SR podľa ID dokladu, (2) kontrolu aktualizácií na GitHube (dá sa vypnúť nižšie), (3) synchronizáciu domácnosti, ak ju zapnete.	The network is used only for: (1) loading receipt items from the Financial Administration’s eKasa by receipt ID, (2) checking for updates on GitHub (can be turned off), (3) household sync, if you turn it on.
+Exportovať dáta (CSV)	Export data (CSV)
+Zmazať všetko	Delete everything
+Zmazať všetky dáta?	Delete all data?
+Natrvalo sa zmažú všetky bločky, položky, rozpočty, pravidlá kategórií, prevádzky a profil v tomto telefóne. Ak ste v spoločnej domácnosti, odídete z nej (údaje ostatných členov ostanú). Nedá sa to vrátiť.	All receipts, items, budgets, category rules, shops and the profile on this phone will be permanently deleted. If you are in a shared household, you will leave it (other members’ data stays). This cannot be undone.
+Zaraďovanie položiek (AI)	Item categorisation (AI)
+Vstavaná AI	Built-in AI
+Rozumie aj skratkám z bločkov (napr. „MLK POLOT.“). Beží len v telefóne, nič neodosiela a učí sa z vašich opráv.	Understands receipt abbreviations too (e.g. “MLK POLOT.”). Runs only on the phone, sends nothing and learns from your corrections.
+AI telefónu (Gemini Nano)	Phone AI (Gemini Nano)
+Niektoré novšie telefóny majú vlastnú AI. Zistenie aj používanie prebieha cez Google ML Kit, ktorý posiela Googlu diagnostické údaje (model telefónu, chyby – nie vaše položky).	Some newer phones have their own AI. Checking and using it goes through Google ML Kit, which sends diagnostic data to Google (phone model, errors – not your items).
+Zistiť, či ju má tento telefón	Check if this phone has it
+Tento telefón nemá vstavanú AI (Gemini Nano). Používa sa AI aplikácie.	This phone has no built-in AI (Gemini Nano). The app’s AI is used.
+Ak je zapnutá, má prednosť pred vstavanou AI. Názvy položiek spracuje v telefóne, ale Google pri nej zbiera diagnostické údaje (model telefónu, veľkosť vstupu, chyby – nie text položiek).	When on, it takes priority over the built-in AI. Item names are processed on the phone, but Google collects diagnostic data (phone model, input size, errors – not item text).
+ Pri zapnutí sa stiahne do telefónu.	 It will be downloaded when turned on.
+Pri zapnutí sa stiahne do telefónu.	It will be downloaded when turned on.
+Preradiť všetky bločky znova	Re-categorise all receipts
+Zloženie domácnosti	Household composition
+Vyplňte pre presnejšie tipy	Fill in for more accurate tips
+Vyplniť	Fill in
+Deň výplaty	Payday
+Od tohto dňa sa počíta mesiac pre prehľad aj rozpočty. 1 = kalendárny mesiac.	The month for the overview and budgets starts on this day. 1 = calendar month.
+Mesiac začína dňom	Month starts on day
+Teraz: kalendárny mesiac ({}).	Now: calendar month ({}).
+Napr. {}: {}. Ak mesiac daný deň nemá, začne posledným dňom mesiaca.	E.g. {}: {}. If a month has no such day, it starts on the last day of the month.
+V spoločnej domácnosti platí pre všetkých členov.	In a shared household it applies to all members.
+hlavný priečinok	main folder
+Záloha a obnova	Backup & restore
+Zašifrovaná záloha	Encrypted backup
+Všetky bločky, kategórie, rozpočty, nastavenia aj členstvo v domácnosti v jednom súbore chránenom vaším heslom. Uložte ho mimo telefónu – na Disk Google, do e-mailu alebo na počítač.	All receipts, categories, budgets, settings and household membership in one file protected by your password. Keep it off the phone – on Google Drive, in email or on a computer.
+Heslo zálohy	Backup password
+nenastavené	not set
+Skryť heslo	Hide password
+Zobraziť heslo	Show password
+Nastaviť	Set
+Zálohovať	Back up
+Obnoviť zo zálohy	Restore from backup
+Automaticky každý týždeň	Automatically every week
+Priečinok: {}	Folder: {}
+ · posledná {}	 · last {}
+posledná {}	last {}
+Do priečinka, ktorý vyberiete. Uchováva 4 posledné zálohy.	To a folder you choose. Keeps the last 4 backups.
+Priečinok v telefóne pri strate telefónu nepomôže – vyberte priečinok, ktorý sa zálohuje mimo telefónu (napr. synchronizovaný s cloudom), alebo občas uložte zálohu ručne na Disk Google.	A folder on the phone won’t help if you lose the phone – choose a folder that is backed up off the phone (e.g. synced to the cloud), or save a backup manually to Google Drive from time to time.
+Kľúč správcu domácnosti	Household admin key
+Kľúč domácnosti	Household key
+S kľúčom sa do domácnosti vrátite z nového telefónu (naskenujte ho skenerom bločkov alebo Nastavenia → Domácnosť → Vložiť kód). Kto ho má, vidí výdavky domácnosti – uložte ho bezpečne, napr. do správcu hesiel.	With the key you can rejoin the household from a new phone (scan it with the receipt scanner or Settings → Household → Enter code). Anyone who has it can see the household spending – store it safely, e.g. in a password manager.
+Zobraziť a uložiť kľúč	Show and save key
+Heslo pre zálohy	Password for backups
+Nové heslo pre zálohy	New password for backups
+Obnoviť zo zálohy?	Restore from backup?
+Záloha z {}	Backup from {}
+, vrátane domácnosti	, including household
+Všetky súčasné údaje v tomto telefóne sa nahradia obsahom zálohy. Aplikácia sa potom reštartuje.	All current data on this phone will be replaced by the backup. The app will then restart.
+Obnoviť	Restore
+Obsahuje aj práva správcu. Uložte ho len pre seba (správca hesiel), nikomu ho neposielajte.	It also contains admin rights. Keep it only for yourself (password manager), never send it to anyone.
+Uložte ho do správcu hesiel alebo bezpečnej poznámky. Nezdieľajte ho s nikým mimo domácnosti.	Store it in a password manager or a secure note. Don’t share it with anyone outside the household.
+Heslo (min. 8 znakov)	Password (min. 8 characters)
+Heslo znova	Password again
+Heslo sa uloží v tomto telefóne (zobrazíte ho ikonou oka) a použije sa pre každú zálohu. Zapíšte si ho aj mimo telefónu – bez neho sa záloha v novom telefóne nedá otvoriť.	The password is stored on this phone (show it with the eye icon) and used for every backup. Also write it down off the phone – without it the backup cannot be opened on a new phone.
+Pokračovať	Continue
+Fixné výdavky	Fixed expenses
+Hypotéka, úver, leasing, nájomné a iné pravidelné platby. V prehľade sa ukážu zvlášť ako kategória Fixné výdavky a v súčte „s fixnými výdavkami“.	Mortgage, loan, leasing, rent and other regular payments. In the overview they appear separately as the Fixed expenses category and in the total “incl. fixed expenses”.
+{} · platba {}. v mesiaci	{} · paid on day {} of the month
+Spolu mesačne	Total per month
++ Pridať fixný výdavok	+ Add fixed expense
+Nový fixný výdavok	New fixed expense
+Fixný výdavok	Fixed expense
+Názov (napr. Hypotéka VÚB)	Name (e.g. Mortgage VÚB)
+Suma mesačne €	Monthly amount €
+Deň platby	Payment day
+Typ: {}	Type: {}
+Tipy	Tips
+Nová verzia aplikácie	New app version
+Exportovať CSV	Export CSV
+Skenuj	Scan
+Exportovať výdavky	Export spending
+Nevyplnené	Not filled in
+1 osoba	1 person
+{} osoby	{} people
+{} osôb	{} people
+1 dieťa	1 child
+{} deti	{} children
+starám sa o blízkeho	caring for a relative
+zvieratá	pets
+auto	car
+Prekročený rozpočet: {}	Budget exceeded: {}
+Minuté {} pri rozpočte {} (+{}).	Spent {} with a budget of {} (+{}).
+{}: +{} oproti priemeru	{}: +{} vs. average
+Tento mesiac {}, priemer predchádzajúcich mesiacov {}.	This month {}, average of previous months {}.
+{} tvorí {} výdavkov	{} makes up {} of spending
+Orientačný strop {} (heuristika aplikácie). Nad stropom: {}.	Guide ceiling {} (app heuristic). Above ceiling: {}.
+{}: lacnejšie v {}	{}: cheaper at {}
+{} {}/ks vs. {} {}/ks. Odhad podľa vašich nákupov za 90 dní.	{} {}/pc vs. {} {}/pc. Estimate based on your purchases in 90 days.
+Odhad podľa vašich nákupov za 90 dní.	Estimate based on your purchases in 90 days.
+Zdražené: {} ({})	Price increase: {} ({})
+{} drobných nákupov pod 5 €	{} small purchases under 5 €
+Spolu {}. Drobné nákupy často znamenajú impulzívne výdavky – skúste ich nahradiť jedným plánovaným nákupom.	Total {}. Small purchases are often impulse spending – try replacing them with one planned shop.
+Často kupované: {}	Frequently bought: {}
+{}× tento mesiac za {}. Zvážte väčšie balenie alebo nákup v akcii.	{}× this month for {}. Consider a bigger pack or buying on promotion.
+Nevrátené zálohy: {}	Unreturned deposits: {}
+Zaplatené {}, vrátené {}. Vráťte fľaše a plechovky – tieto peniaze sa dajú získať späť.	Paid {}, returned {}. Return bottles and cans – you can get this money back.
+Vráťte fľaše a plechovky – tieto peniaze sa dajú získať späť.	Return bottles and cans – you can get this money back.
+Potraviny a nápoje: {} na osobu	Food & drinks: {} per person
+Spolu {} pre {}	Total {} for {}
+ (vrátane detí)	 (incl. children)
+. Bez reštaurácií.	. Excluding restaurants.
+Neesenciálne výdavky {}	Non-essential spending {}
+Alkohol, tabak, sladkosti, nápoje, hotové jedlá, reštaurácie, zábava a podobne – spolu {}.	Alcohol, tobacco, sweets, drinks, ready meals, restaurants, entertainment and similar – total {}.
+Nákup z {} · {} · {}	Purchase from {} · {} · {}
+Nahral(a) {}	Added by {}
+Nákup z {}	Purchase from {}
+QR kód nie je bloček eKasa.\nObsah: {}	The QR code is not an eKasa receipt.\nContent: {}
+Chyba eKasa	eKasa error
+Bez pripojenia – načíta sa automaticky neskôr.	Offline – it will load automatically later.
+Toto nie je QR kód z bločku eKasa.	This is not an eKasa receipt QR code.
+Tento bloček už máte uložený.	You already have this receipt saved.
+Server eKasa vrátil chybu {}.	The eKasa server returned error {}.
+Neplatná odpoveď servera eKasa.	Invalid response from the eKasa server.
+Doklad zatiaľ nie je v systéme eKasa (offline doklady sa objavia s oneskorením).	The receipt is not in eKasa yet (offline receipts appear with a delay).
+Doklad sa nepodarilo načítať (kód {}).	Could not load the receipt (code {}).
+Aktualizácie sú vypnuté – APK nebolo zostavené cez GitHub Actions.	Updates are off – the APK was not built by GitHub Actions.
+Release sa nenašiel. Ak je repozitár súkromný, pridajte secret UPDATE_TOKEN (pozri README).	Release not found. If the repository is private, add the UPDATE_TOKEN secret (see README).
+Zatiaľ neexistuje žiadny release.	No release exists yet.
+GitHub odmietol prístup ({}). Skontrolujte token / limit požiadaviek.	GitHub denied access ({}). Check the token / rate limit.
+GitHub vrátil chybu {}.	GitHub returned error {}.
+Release {} neobsahuje APK.	Release {} contains no APK.
+Sťahovanie zlyhalo ({}).	Download failed ({}).
+Prázdna odpoveď.	Empty response.
+Nesprávne heslo alebo poškodený súbor.	Wrong password or damaged file.
+Záloha je poškodená.	The backup is damaged.
+Záloha je z novšej verzie aplikácie. Najprv aplikáciu aktualizujte.	The backup is from a newer app version. Update the app first.
+Do priečinka sa nedá zapisovať.	Cannot write to the folder.
+Súbor nie je záloha Bločkov.	The file is not a Bločky backup.
+Server nie je nastavený – pozrite návod (google-services.json).	The server is not set up – see the guide (google-services.json).
+Pozvánka je neplatná alebo domácnosť už neexistuje.	The invite is invalid or the household no longer exists.
+Chyba	Error
+Domácnosť je plná (najviac {} členov).	The household is full (max {} members).
+Členov môže odstrániť len správca domácnosti.	Only the household admin can remove members.
+Kľúč môže vymeniť len správca domácnosti.	Only the household admin can replace the key.
+Správca	Admin
+Člen	Member
+Prístup zamietnutý (nie ste členom domácnosti alebo chýbajú pravidlá Firestore).	Access denied (you are not a household member or Firestore rules are missing).
+Nenájdené.	Not found.
+Už existuje.	Already exists.
+Chyba servera {}	Server error {}
+Hypotéka	Mortgage
+Úver	Loan
+Leasing	Leasing
+Nájomné	Rent
+Energie	Utilities
+Poistenie	Insurance
+Predplatné	Subscription
+Iné	Other
+Správca domácnosti vás z domácnosti odstránil. Bločky ostali v tomto telefóne.	The household admin removed you from the household. Receipts stayed on this phone.
+Chyba: {}	Error: {}
+Synchronizujem…	Syncing…
+Jazyk	Language
+Jazyk aplikácie	App language
+Mäso a ryby	Meat & fish
+Lahôdky a údeniny	Deli & cold cuts
+Mliečne a vajcia	Dairy & eggs
+Pečivo	Bakery
+Ovocie a zelenina	Fruit & vegetables
+Trvanlivé potraviny	Pantry
+Mrazené a hotové jedlá	Frozen & ready meals
+Nealko nápoje	Soft drinks
+Alkohol	Alcohol
+Tabak	Tobacco
+Sladkosti a snacky	Sweets & snacks
+Drogéria a hygiena	Toiletries & hygiene
+Lekáreň a zdravie	Pharmacy & health
+Zvieratá	Pets
+Reštaurácie a fast food	Restaurants & fast food
+Ubytovanie	Accommodation
+Wellness, šport, zábava	Wellness, sport, leisure
+Oblečenie a obuv	Clothing & shoes
+Elektronika	Electronics
+Služby	Services
+Pohonné hmoty	Fuel
+Auto a moto	Car & motorbike
+Zľavy	Discounts
+Obchod s potravinami	Grocery store
+Čerpacia stanica	Petrol station
+Reštaurácia, kaviareň	Restaurant, café
+Hotel, ubytovanie	Hotel, accommodation
+Lekáreň	Pharmacy
+Drogéria	Drugstore
+Domácnosť, záhrada	Home & garden
+Oblečenie, obuv	Clothing, shoes
+Auto, moto, servis	Car, moto, service
+Iný obchod	Other shop
+Neznáma prevádzka	Unknown shop
+Záloha z {}, vrátane domácnosti.	Backup from {}, including household.
+Záloha z {}.	Backup from {}.
+Ak je zapnutá, má prednosť pred vstavanou AI. Názvy položiek spracuje v telefóne, ale Google pri nej zbiera diagnostické údaje (model telefónu, veľkosť vstupu, chyby – nie text položiek). Pri zapnutí sa stiahne do telefónu.	When on, it takes priority over the built-in AI. Item names are processed on the phone, but Google collects diagnostic data (phone model, input size, errors – not item text). It will be downloaded when turned on.
+{} (toto zariadenie)	{} (this device)
+Nahral(a) {} · Nákup z {} · {} · {}	Added by {} · Purchase from {} · {} · {}

@@ -53,7 +53,9 @@ import java.time.format.DateTimeFormatter
 val ReceiptListRow.counted: Long get() = countedCents ?: receipt.totalCents
 
 private val DT = DateTimeFormatter.ofPattern("d. M. yyyy HH:mm")
-private val DAY = DateTimeFormatter.ofPattern("EEE d. M. · HH:mm", SK)
+private val DAY_SK = DateTimeFormatter.ofPattern("EEE d. M. · HH:mm", SK)
+private val DAY_EN = DateTimeFormatter.ofPattern("EEE d. M. · HH:mm", java.util.Locale.ENGLISH)
+private val DAY get() = if (sk.miro.blocky.domain.I18n.english) DAY_EN else DAY_SK
 fun fmtDate(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(DT)
 private val DM = DateTimeFormatter.ofPattern("d. M.")
 
