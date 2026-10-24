@@ -69,7 +69,11 @@ android {
 
     buildTypes {
         // CI zostavuje „debug“ verziu – zapnuté zmenšenie kódu (R8) a zdrojov, aby APK malo pár MB, nie 40.
+        // Testovacia verzia z GitHubu sa inštaluje VEDĽA verzie z Google Play (iný balík, iný názov, vlastné údaje).
         debug {
+            applicationIdSuffix = ".test"
+            versionNameSuffix = "-test"
+            resValue("string", "app_name", "Bločky TEST")
             signingConfig = signingConfigs.getByName("test")
             isMinifyEnabled = true
             isShrinkResources = true
@@ -77,6 +81,7 @@ android {
         }
         // Verzia pre Google Play (AAB): bez samoaktualizácie z GitHubu, podpísaná kľúčom na nahrávanie.
         release {
+            resValue("string", "app_name", "Bločky")
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("test")
             isMinifyEnabled = true
             isShrinkResources = true

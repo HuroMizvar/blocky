@@ -57,6 +57,9 @@ kategórií sú heuristika aplikácie (`Category.benchmarkShare`), nie štatisti
 
 ## Ako získať APK a aktualizácie
 
+APK z GitHubu je **testovacia verzia** `sk.miro.blocky.test` („Bločky TEST“) – inštaluje sa vedľa verzie z Google Play a má vlastné údaje (preniesť sa dajú zálohou).
+
+
 ### Prvá inštalácia (raz)
 1. Vytvorte na GitHube repozitár a nahrajte doň obsah tohto priečinka (vetva `main`).
 2. Záložka **Actions** → workflow *Build APK* sa spustí sám (~5–8 min).
