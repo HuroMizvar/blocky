@@ -72,6 +72,11 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
         runCatching { I18n.load(context.assets.open("i18n_en.tsv").bufferedReader().use { it.readText() }) }
     }
 
+    /** farebná téma (ukladá sa len v tomto zariadení – každý člen domácnosti môže mať inú) */
+    var theme: String
+        get() = prefs.getString("theme", "PAPER") ?: "PAPER"
+        set(v) = prefs.edit().putString("theme", v).apply()
+
     /** anglický jazyk aplikácie */
     var english: Boolean
         get() = prefs.getBoolean("lang_en", false)

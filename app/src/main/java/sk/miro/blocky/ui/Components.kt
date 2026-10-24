@@ -16,6 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.annotation.DrawableRes
@@ -73,23 +77,86 @@ fun Text(
 /** preklad textu mimo Text (napr. popis ikony) */
 fun t(s: String): String = sk.miro.blocky.domain.I18n.tr(s)
 
-/** Paleta smeru A – „Svetlý a pokojný“. */
+/** Farebné témy – vyberá si ich každý používateľ zvlášť (Nastavenia), nesynchronizujú sa. */
+enum class ThemeId(val label: String) { PAPER("Pokojný papier"), FRESH("Svieža zelená"), NIGHT("Nočný režim") }
+
+class Palette(
+    val bg: Color, val card: Color, val ink: Color, val muted: Color, val faint: Color, val line: Color,
+    val track: Color, val neutral: Color, val green: Color, val greenSoft: Color, val onGreen: Color,
+    val red: Color, val redSoft: Color, val amber: Color, val amberSoft: Color, val camera: Color,
+    /** tmavé „hero“ karty (AI analýza, automatické rozpočty) */
+    val hero: Color, val onHero: Color, val onHeroMuted: Color,
+    /** hlavná karta „Minuté tento mesiac“ */
+    val total: Color, val onTotal: Color, val onTotalMuted: Color, val totalTrack: Color,
+    /** zvýraznenie (Svieža zelená: žltá) */
+    val highlight: Color, val onHighlight: Color,
+    val dark: Boolean
+)
+
+private val PAPER = Palette(
+    bg = Color(0xFFF6F5F1), card = Color(0xFFFFFFFF), ink = Color(0xFF17201B), muted = Color(0xFF55605A),
+    faint = Color(0xFFA3A9A5), line = Color(0xFFECEAE4), track = Color(0xFFF0EEE8), neutral = Color(0xFFE6E4DD),
+    green = Color(0xFF1F7A4D), greenSoft = Color(0xFFE3F1E8), onGreen = Color.White,
+    red = Color(0xFFB3361B), redSoft = Color(0xFFFCE7E2), amber = Color(0xFF9A5B06), amberSoft = Color(0xFFFDF0DB),
+    camera = Color(0xFF1B1D1C), hero = Color(0xFF17201B), onHero = Color.White, onHeroMuted = Color(0xFFC9D2CD),
+    total = Color(0xFFFFFFFF), onTotal = Color(0xFF17201B), onTotalMuted = Color(0xFF55605A), totalTrack = Color(0xFFF0EEE8),
+    highlight = Color(0xFFE3F1E8), onHighlight = Color(0xFF1F7A4D), dark = false
+)
+
+private val FRESH = Palette(
+    bg = Color(0xFFEEF5EF), card = Color(0xFFFFFFFF), ink = Color(0xFF10251A), muted = Color(0xFF44594C),
+    faint = Color(0xFF9DB3A5), line = Color(0xFFDCE8DF), track = Color(0xFFE3EEE6), neutral = Color(0xFFD6EADC),
+    green = Color(0xFF1F7A4D), greenSoft = Color(0xFFD6EADC), onGreen = Color.White,
+    red = Color(0xFFB3361B), redSoft = Color(0xFFFCE7E2), amber = Color(0xFF8A5300), amberSoft = Color(0xFFFFF6E2),
+    camera = Color(0xFF142019), hero = Color(0xFF1F7A4D), onHero = Color.White, onHeroMuted = Color(0xFFCFEBDB),
+    total = Color(0xFF1F7A4D), onTotal = Color.White, onTotalMuted = Color(0xFFCFEBDB), totalTrack = Color(0x2EFFFFFF),
+    highlight = Color(0xFFF2C14E), onHighlight = Color(0xFF10251A), dark = false
+)
+
+private val NIGHT = Palette(
+    bg = Color(0xFF111614), card = Color(0xFF1B221F), ink = Color(0xFFEEF3EF), muted = Color(0xFF9AA8A0),
+    faint = Color(0xFF5E6B64), line = Color(0xFF26302B), track = Color(0xFF2A3530), neutral = Color(0xFF232B27),
+    green = Color(0xFF5FD3A0), greenSoft = Color(0xFF1E3A2E), onGreen = Color(0xFF0C100E),
+    red = Color(0xFFF48A70), redSoft = Color(0xFF3A2420), amber = Color(0xFFF0B44C), amberSoft = Color(0xFF3A3020),
+    camera = Color(0xFF0C100E), hero = Color(0xFF232B27), onHero = Color(0xFFEEF3EF), onHeroMuted = Color(0xFF9AA8A0),
+    total = Color(0xFF1B221F), onTotal = Color(0xFFEEF3EF), onTotalMuted = Color(0xFF9AA8A0), totalTrack = Color(0xFF2A3530),
+    highlight = Color(0xFF1E3A2E), onHighlight = Color(0xFF5FD3A0), dark = true
+)
+
+object AppTheme {
+    /** Compose stav – zmena témy prekreslí celú aplikáciu */
+    var id by mutableStateOf(ThemeId.PAPER)
+    val p: Palette get() = when (id) { ThemeId.PAPER -> PAPER; ThemeId.FRESH -> FRESH; ThemeId.NIGHT -> NIGHT }
+    val dark: Boolean get() = p.dark
+}
+
+/** Farby aktuálnej témy (názvy ostali z pôvodnej palety, aby sa nemuseli meniť všetky obrazovky). */
 object Pal {
-    val Bg = Color(0xFFF6F5F1)
-    val Card = Color(0xFFFFFFFF)
-    val Ink = Color(0xFF17201B)
-    val Muted = Color(0xFF55605A)
-    val Faint = Color(0xFFA3A9A5)
-    val Line = Color(0xFFECEAE4)
-    val Track = Color(0xFFF0EEE8)
-    val Neutral = Color(0xFFE6E4DD)
-    val Green = Color(0xFF1F7A4D)
-    val GreenSoft = Color(0xFFE3F1E8)
-    val Red = Color(0xFFB3361B)
-    val RedSoft = Color(0xFFFCE7E2)
-    val Amber = Color(0xFF9A5B06)
-    val AmberSoft = Color(0xFFFDF0DB)
-    val Camera = Color(0xFF1B1D1C)
+    val Bg get() = AppTheme.p.bg
+    val Card get() = AppTheme.p.card
+    val Ink get() = AppTheme.p.ink
+    val Muted get() = AppTheme.p.muted
+    val Faint get() = AppTheme.p.faint
+    val Line get() = AppTheme.p.line
+    val Track get() = AppTheme.p.track
+    val Neutral get() = AppTheme.p.neutral
+    val Green get() = AppTheme.p.green
+    val GreenSoft get() = AppTheme.p.greenSoft
+    val OnGreen get() = AppTheme.p.onGreen
+    val Red get() = AppTheme.p.red
+    val RedSoft get() = AppTheme.p.redSoft
+    val Amber get() = AppTheme.p.amber
+    val AmberSoft get() = AppTheme.p.amberSoft
+    val Camera get() = AppTheme.p.camera
+    val Hero get() = AppTheme.p.hero
+    val OnHero get() = AppTheme.p.onHero
+    val OnHeroMuted get() = AppTheme.p.onHeroMuted
+    val Total get() = AppTheme.p.total
+    val OnTotal get() = AppTheme.p.onTotal
+    val OnTotalMuted get() = AppTheme.p.onTotalMuted
+    val TotalTrack get() = AppTheme.p.totalTrack
+    val Highlight get() = AppTheme.p.highlight
+    val OnHighlight get() = AppTheme.p.onHighlight
 }
 
 val Jakarta = FontFamily(
@@ -100,8 +167,20 @@ val Jakarta = FontFamily(
     Font(R.font.jakarta_extrabold, FontWeight.ExtraBold)
 )
 
-private val Colors = lightColorScheme(
-    primary = Pal.Green, onPrimary = Color.White,
+private fun colors() = if (AppTheme.dark) darkColorScheme(
+    primary = Pal.Green, onPrimary = Pal.OnGreen,
+    primaryContainer = Pal.GreenSoft, onPrimaryContainer = Pal.Green,
+    secondary = Pal.Ink, onSecondary = Pal.Bg,
+    tertiaryContainer = Pal.AmberSoft, onTertiaryContainer = Pal.Amber,
+    background = Pal.Bg, onBackground = Pal.Ink,
+    surface = Pal.Bg, onSurface = Pal.Ink,
+    surfaceVariant = Pal.Track, onSurfaceVariant = Pal.Muted,
+    surfaceContainer = Pal.Card, surfaceContainerHigh = Pal.Card, surfaceContainerLow = Pal.Card,
+    surfaceContainerLowest = Pal.Card, surfaceContainerHighest = Pal.Neutral,
+    outline = Pal.Faint, outlineVariant = Pal.Line,
+    error = Pal.Red, onError = Pal.Bg, errorContainer = Pal.RedSoft
+) else lightColorScheme(
+    primary = Pal.Green, onPrimary = Pal.OnGreen,
     primaryContainer = Pal.GreenSoft, onPrimaryContainer = Pal.Green,
     secondary = Pal.Ink, onSecondary = Color.White,
     tertiaryContainer = Pal.AmberSoft, onTertiaryContainer = Pal.Amber,
@@ -126,8 +205,20 @@ private fun Typography.withFont(): Typography {
 }
 
 @Composable
-fun BlockyTheme(content: @Composable () -> Unit) =
-    MaterialTheme(colorScheme = Colors, typography = Typography().withFont(), content = content)
+fun BlockyTheme(content: @Composable () -> Unit) {
+    val dark = AppTheme.dark
+    // ikony stavového a navigačného riadku podľa témy
+    val view = androidx.compose.ui.platform.LocalView.current
+    SideEffect {
+        val window = (view.context as? android.app.Activity)?.window ?: return@SideEffect
+        val ctl = androidx.core.view.WindowCompat.getInsetsController(window, view)
+        ctl.isAppearanceLightStatusBars = !dark
+        ctl.isAppearanceLightNavigationBars = !dark
+        @Suppress("DEPRECATION")
+        window.navigationBarColor = Pal.Card.toArgb()
+    }
+    MaterialTheme(colorScheme = colors(), typography = Typography().withFont(), content = content)
+}
 
 fun eur(c: Long) = Analytics.eur(c)
 
@@ -141,7 +232,11 @@ fun monthName(m: YearMonth): String =
 @Composable
 fun BCard(modifier: Modifier = Modifier, padding: PaddingValues = PaddingValues(20.dp), color: Color = Pal.Card,
           content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(color).padding(padding), content = content)
+    val shape = RoundedCornerShape(if (AppTheme.id == ThemeId.FRESH) 26.dp else 24.dp)
+    Column(modifier.fillMaxWidth()
+        .then(if (AppTheme.id == ThemeId.PAPER) Modifier.shadow(6.dp, shape, ambientColor = Color(0x14000000), spotColor = Color(0x1A17201B)) else Modifier)
+        .then(if (AppTheme.id == ThemeId.NIGHT) Modifier.border(1.dp, Pal.Line, shape) else Modifier)
+        .clip(shape).background(color).padding(padding), content = content)
 }
 
 @Composable
@@ -266,9 +361,21 @@ val CUSTOM_COLORS: List<Pair<Color, Color>> = listOf(
 @Composable
 fun CatBadge(c: Category, size: Int = 38) {
     val s = catStyle(c)
-    Box(Modifier.size(size.dp).clip(RoundedCornerShape((size / 3).dp)).background(s.bg), contentAlignment = Alignment.Center) {
-        Icon(painterResource(s.icon), null, tint = s.fg, modifier = Modifier.size((size * 0.6f).dp))
+    val (bg, tint) = badgeColors(s.bg, s.fg)
+    val shape = if (AppTheme.id == ThemeId.FRESH) CircleShape else RoundedCornerShape((size / 3).dp)
+    Box(Modifier.size(size.dp).clip(shape).background(bg), contentAlignment = Alignment.Center) {
+        Icon(painterResource(s.icon), null, tint = tint, modifier = Modifier.size((size * 0.6f).dp))
     }
+}
+
+/** farba ikony kategórie / prevádzky podľa témy (pásy, grafy) */
+fun themedFg(fg: Color): Color = if (AppTheme.dark) androidx.compose.ui.graphics.lerp(fg, Color.White, 0.45f) else fg
+
+/** pozadie a farba ikony odznaku podľa témy: papier = pastel, svieža = plná farba, noc = svetlá ikona na tmavom */
+fun badgeColors(bg: Color, fg: Color): Pair<Color, Color> = when (AppTheme.id) {
+    ThemeId.PAPER -> bg to fg
+    ThemeId.FRESH -> fg to Color.White
+    ThemeId.NIGHT -> themedFg(fg).copy(alpha = 0.16f).compositeOver(Pal.Card) to themedFg(fg)
 }
 
 data class MerchantStyle(val bg: Color, val fg: Color, @DrawableRes val icon: Int)
@@ -294,8 +401,9 @@ fun merchantStyle(t: MerchantType): MerchantStyle = when (t) {
 @Composable
 fun MerchantBadge(t: MerchantType, size: Int = 40) {
     val s = merchantStyle(t)
-    Box(Modifier.size(size.dp).clip(CircleShape).background(s.bg), contentAlignment = Alignment.Center) {
-        Icon(painterResource(s.icon), t.label, tint = s.fg, modifier = Modifier.size((size * 0.56f).dp))
+    val (bg, tint) = badgeColors(s.bg, s.fg)
+    Box(Modifier.size(size.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
+        Icon(painterResource(s.icon), t.label, tint = tint, modifier = Modifier.size((size * 0.56f).dp))
     }
 }
 
@@ -320,10 +428,11 @@ fun MerchantTypeDialog(m: MerchantEntity, onPick: (MerchantType) -> Unit, onLate
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         row.forEach { t ->
                             val st = merchantStyle(t)
-                            Row(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(st.bg)
+                            val tileBg = if (AppTheme.dark) themedFg(st.fg).copy(alpha = 0.16f).compositeOver(Pal.Card) else st.bg
+                            Row(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(tileBg)
                                 .clickable { onPick(t) }.padding(horizontal = 10.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
-                                Icon(painterResource(st.icon), null, tint = st.fg, modifier = Modifier.size(22.dp))
+                                Icon(painterResource(st.icon), null, tint = themedFg(st.fg), modifier = Modifier.size(22.dp))
                                 Spacer(Modifier.width(8.dp))
                                 Text(t.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Pal.Ink,
                                     maxLines = 2, lineHeight = 16.sp)

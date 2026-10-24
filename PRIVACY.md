@@ -11,6 +11,7 @@ Aplikácia je navrhnutá tak, aby vaše údaje zostali súkromné. Nie je aplik�
 |---|---|---|
 | Bločky, položky, ceny, obchody, kategórie, rozpočty, profil domácnosti | len v súkromnom úložisku aplikácie vo vašom telefóne | len vy |
 | Obraz z kamery pri skenovaní | nikam sa neukladá ani neodosiela; QR kód sa číta priamo v telefóne | nikto |
+| Plávajúci skener (voliteľné) | obraz obrazovky v oblasti rámčeka sa len v pamäti telefónu prehľadá na QR kód eKasa; neukladá sa, nenahráva a nikam neodosiela. Snímanie beží len kým je rámček zapnutý (vidno ho aj v notifikácii) | nikto |
 | E-bločky (PDF, obrázky) zdieľané z e-mailu | QR kód sa prečíta priamo v telefóne, súbor sa po prečítaní zahodí a nikam sa neodosiela | nikto |
 
 Aplikácia **nepoužíva reklamy, analytiku ani reklamné identifikátory**, údaje **nepredáva** a **nepoužíva ich na trénovanie umelej inteligencie**.

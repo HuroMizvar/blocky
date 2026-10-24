@@ -17,6 +17,7 @@ import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -88,7 +89,7 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
         val window = (context as? Activity)?.window
         val ctl = window?.let { WindowCompat.getInsetsController(it, view) }
         ctl?.isAppearanceLightStatusBars = false
-        onDispose { ctl?.isAppearanceLightStatusBars = true }
+        onDispose { ctl?.isAppearanceLightStatusBars = !AppTheme.dark }
     }
 
     val banner by vm.banner.collectAsState()
@@ -101,6 +102,29 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
     // e-bloček z e-mailu uložený v telefóne (PDF / obrázok)
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) vm.importReceipts(uris)
+    }
+    // plávajúci skener obrazovky
+    val floatingOn = sk.miro.blocky.scan.ScreenScanService.running
+    var askOverlay by remember { mutableStateOf(false) }
+    val projection = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+        val data = res.data
+        if (res.resultCode == Activity.RESULT_OK && data != null) {
+            sk.miro.blocky.scan.ScreenScanService.start(context, res.resultCode, data)
+            (context as? Activity)?.moveTaskToBack(true)   // používateľ otvorí e-mail / PDF
+        }
+    }
+    val notifPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    fun startFloating() {
+        if (sk.miro.blocky.scan.ScreenScanService.running) {
+            context.startService(android.content.Intent(context, sk.miro.blocky.scan.ScreenScanService::class.java)
+                .setAction(sk.miro.blocky.scan.ScreenScanService.ACTION_STOP))
+            return
+        }
+        if (!sk.miro.blocky.scan.ScreenScanService.canDrawOverlays(context)) { askOverlay = true; return }
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED) notifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
+        val mpm = context.getSystemService(android.media.projection.MediaProjectionManager::class.java)
+        projection.launch(mpm.createScreenCaptureIntent())
     }
 
     // Vibrácia hneď pri rozpoznaní QR (nečaká na odpoveď eKasa).
@@ -170,16 +194,21 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
                 onOpen = { id -> vm.clearBanner(); onOpenReceipt(id) },
                 onNext = vm::scanNext)
             else HintCard()
-            OutlinedButton(onClick = { filePicker.launch(arrayOf("application/pdf", "image/*")) },
+            // plávajúci rámček nad e-mailom / PDF – číta QR kódy priamo z obrazovky
+            OutlinedButton(onClick = { startFloating() },
                 Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Pal.Line),
+                border = androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFF5A524)),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = Pal.Card, contentColor = Pal.Ink)) {
-                Icon(Icons.Default.UploadFile, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
-                Text("E-bloček z e-mailu (PDF / obrázok)", fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Icon(Icons.Default.CropFree, null, Modifier.size(18.dp), tint = Color(0xFFD9880B)); Spacer(Modifier.width(8.dp))
+                Text(if (floatingOn) "Vypnúť plávajúci skener" else "Skenovať z e-mailu / PDF (plávajúci rámček)",
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
+            Text("alebo vybrať súbor (PDF / obrázok)", Modifier.align(Alignment.CenterHorizontally)
+                .clip(RoundedCornerShape(8.dp)).clickable { filePicker.launch(arrayOf("application/pdf", "image/*")) }
+                .padding(horizontal = 8.dp, vertical = 2.dp), fontSize = 13.sp, color = Pal.Green, fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onClick = onOpenApp, Modifier.weight(1f).height(54.dp), shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Pal.Ink, contentColor = Color.White)) {
+                    colors = ButtonDefaults.buttonColors(containerColor = Pal.Hero, contentColor = Pal.OnHero)) {
                     Icon(Icons.Default.BarChart, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
                     Text("Prehľad", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
@@ -190,6 +219,25 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
             }
         }
     }
+
+    if (askOverlay) AlertDialog(
+        onDismissRequest = { askOverlay = false },
+        containerColor = Pal.Card,
+        title = { Text("Povoliť plávajúci rámček") },
+        text = {
+            Text("Aby mohol rámček skenera ležať nad e-mailom alebo PDF, povoľte Bločkom „Zobrazovať cez iné aplikácie“. " +
+                "Potom sa vráťte a ťuknite znova. Pri spustení Android požiada o súhlas so snímaním obrazovky – " +
+                "vyberte celú obrazovku. Obraz sa spracúva len v telefóne a nikam sa neposiela.")
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                askOverlay = false
+                context.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:" + context.packageName)))
+            }) { Text("Otvoriť nastavenie") }
+        },
+        dismissButton = { TextButton(onClick = { askOverlay = false }) { Text("Zrušiť") } }
+    )
 
     question?.let { m ->
         MerchantTypeDialog(m, onPick = { t -> vm.answerMerchant(m, t) }, onLater = { vm.skipMerchant(m) })
@@ -251,7 +299,7 @@ private fun ScanBannerCard(b: ScanBanner, onOpen: (Long) -> Unit, onNext: () -> 
         BannerKind.ERROR -> Pal.Red to Icons.Default.PriorityHigh
     }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-        .background(if (dup) Color(0xFFFFF3DC) else Pal.Card).padding(16.dp),
+        .background(if (dup) Pal.AmberSoft else Pal.Card).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(44.dp).clip(CircleShape).background(circle), contentAlignment = Alignment.Center) {
@@ -260,7 +308,7 @@ private fun ScanBannerCard(b: ScanBanner, onOpen: (Long) -> Unit, onNext: () -> 
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(b.title, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold,
-                    color = if (dup) Color(0xFF8A4B00) else Pal.Ink, maxLines = 2)
+                    color = if (dup) Pal.Amber else Pal.Ink, maxLines = 2)
                 b.sub?.let { Text(it, fontSize = 13.sp, color = Pal.Muted, maxLines = 3) }
             }
             if (b.kind == BannerKind.WAIT)
@@ -268,7 +316,7 @@ private fun ScanBannerCard(b: ScanBanner, onOpen: (Long) -> Unit, onNext: () -> 
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(onClick = onNext, Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Pal.Green, contentColor = Color.White)) {
+                colors = ButtonDefaults.buttonColors(containerColor = Pal.Green, contentColor = Pal.OnGreen)) {
                 Icon(Icons.Default.QrCodeScanner, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
                 Text("Skenovať ďalší", fontWeight = FontWeight.Bold)
             }

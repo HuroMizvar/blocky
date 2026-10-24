@@ -87,44 +87,50 @@ fun ReportScreen(
         item {
             val budgetSum = st.budgets.values.sum()
             val isCurrent = r.month == Period.current()
-            BCard(Modifier.padding(top = 12.dp)) {
+            BCard(Modifier.padding(top = 12.dp), color = Pal.Total) {
+              CompositionLocalProvider(LocalContentColor provides Pal.OnTotal) {
                 Text(if (isCurrent) "Minuté tento mesiac (bez záloh)" else "Minuté v mesiaci (bez záloh)", fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold, color = Pal.Muted)
+                    fontWeight = FontWeight.SemiBold, color = Pal.OnTotalMuted)
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(eur(r.totalCents), fontSize = 38.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp)
                     Spacer(Modifier.width(10.dp))
                     deltaPct(r.totalCents, r.prevTotalCents.takeIf { it > 0 })?.let { d ->
                         val good = d <= 0
-                        Tag((if (d > 0) "+" else if (d < 0) "−" else "") + "${kotlin.math.abs(d)} % vs. min. mes.",
+                        if (AppTheme.id == ThemeId.FRESH) Tag((if (d > 0) "+" else if (d < 0) "−" else "") + "${kotlin.math.abs(d)} % vs. min. mes.",
+                            Pal.OnHighlight, Pal.Highlight)
+                        else Tag((if (d > 0) "+" else if (d < 0) "−" else "") + "${kotlin.math.abs(d)} % vs. min. mes.",
                             if (good) Pal.Green else Pal.Amber, if (good) Pal.GreenSoft else Pal.AmberSoft)
                     }
                 }
                 if (r.fixedCents > 0) {
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("S fixnými výdavkami", Modifier.weight(1f), fontSize = 14.sp, color = Pal.Muted, fontWeight = FontWeight.SemiBold)
+                        Text("S fixnými výdavkami", Modifier.weight(1f), fontSize = 14.sp, color = Pal.OnTotalMuted, fontWeight = FontWeight.SemiBold)
                         Text(eur(r.totalWithFixedCents), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                     }
                     Text("fixné ${eur(r.fixedCents)}: " + r.fixedPayments.joinToString(", ") { it.expense.name },
-                        fontSize = 12.sp, color = Pal.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        fontSize = 12.sp, color = Pal.OnTotalMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Spacer(Modifier.height(12.dp))
                 if (budgetSum > 0) {
-                    ProgressTrack(r.totalCents.toFloat() / budgetSum, if (r.totalCents > budgetSum) Pal.Red else Pal.Green, height = 10, track = Pal.Line)
+                    ProgressTrack(r.totalCents.toFloat() / budgetSum,
+                        if (r.totalCents > budgetSum) Pal.Red else if (AppTheme.id == ThemeId.FRESH) Pal.OnTotal else Pal.Green,
+                        height = 10, track = Pal.TotalTrack)
                     Spacer(Modifier.height(8.dp))
                     val left = budgetSum - r.totalCents
                     val days = if (isCurrent) Period.length(r.month) - Period.dayIndex(r.month, LocalDate.now()) else 0
                     Row {
-                        Text("Rozpočet ${eur(budgetSum)}", Modifier.weight(1f), fontSize = 13.sp, color = Pal.Muted)
+                        Text("Rozpočet ${eur(budgetSum)}", Modifier.weight(1f), fontSize = 13.sp, color = Pal.OnTotalMuted)
                         Text(if (left >= 0) "zostáva ${eur(left)}" + (if (days > 0) " · $days dní" else "")
                              else "prekročené o ${eur(-left)}",
                             fontSize = 13.sp, color = if (left >= 0) Pal.Muted else Pal.Red, fontWeight = FontWeight.SemiBold)
                     }
                 } else {
                     Text("Nastaviť mesačný rozpočet", Modifier.clickable(onClick = onOpenBudgets).padding(vertical = 6.dp),
-                        color = Pal.Green, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        color = if (AppTheme.id == ThemeId.FRESH) Pal.Highlight else Pal.Green, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
+              }
             }
         }
 
@@ -152,7 +158,7 @@ fun ReportScreen(
         item {
             ExpandableCard(cats.size, initial = 6, what = "kategórie") { limit ->
                 // farebné rozdelenie výdavkov
-                SplitBar(cats.filter { it.cents > 0 }.map { catStyle(it.category).fg to it.share.toFloat() })
+                SplitBar(cats.filter { it.cents > 0 }.map { themedFg(catStyle(it.category).fg) to it.share.toFloat() })
                 Spacer(Modifier.height(6.dp))
                 val max = cats.filter { it.category != Category.FIXNE }.maxOfOrNull { maxOf(it.cents, it.budgetCents ?: 0L) } ?: 1L
                 cats.take(limit).forEach { c ->
@@ -167,7 +173,7 @@ fun ReportScreen(
                         subtitle = "${Math.round(c.share * 100)} % výdavkov" + (c.budgetCents?.let { " · rozpočet ${eur(it)}" } ?: ""),
                         amount = c.cents,
                         trend = deltaPct(c.cents, c.avg3Cents),
-                        bar = c.cents.toFloat() / max to catStyle(c.category).fg,
+                        bar = c.cents.toFloat() / max to themedFg(catStyle(c.category).fg),
                         onClick = { onOpenItems("cat", c.category.name, r.month) }
                     )
                 }
@@ -323,16 +329,16 @@ fun RecommendationsScreen(vm: MainViewModel, contentPadding: PaddingValues, acti
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { MonthSwitcher(st.month, st.months, vm::selectMonth, actions) }
         item {
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Ink)
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Pal.Hero)
                 .clickable { aiOpen = true }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFFB8E6C9), modifier = Modifier.size(22.dp))
+                Box(Modifier.size(40.dp).clip(CircleShape).background(Pal.OnHero.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.AutoAwesome, null, tint = Pal.OnHero, modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Analýza pomocou AI", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Analýza pomocou AI", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Pal.OnHero)
                     Text("Pripravím súhrn, skontrolujete ho a pošlete do AI aplikácie, ktorú si vyberiete",
-                        fontSize = 13.sp, color = Color(0xFFC9D3CD))
+                        fontSize = 13.sp, color = Pal.OnHeroMuted)
                 }
             }
         }
@@ -348,12 +354,12 @@ fun RecommendationsScreen(vm: MainViewModel, contentPadding: PaddingValues, acti
         }
         val withSaving = recs.filter { (it.estSavingCents ?: 0L) > 0 }
         if (withSaving.isNotEmpty()) item {
-            BCard(color = Pal.Ink) {
-                Text("Odhad mesačnej úspory", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFC9D3CD))
+            BCard(color = Pal.Highlight) {
+                Text("Odhad mesačnej úspory", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Pal.OnHighlight)
                 Text("až ${eur(withSaving.sumOf { it.estSavingCents ?: 0L })}", fontSize = 32.sp,
-                    fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    fontWeight = FontWeight.ExtraBold, color = Pal.OnHighlight)
                 Text("súčet ${withSaving.size} ${if (withSaving.size == 1) "tipu" else "tipov"} · môžu sa prekrývať",
-                    fontSize = 13.sp, color = Color(0xFFC9D3CD))
+                    fontSize = 13.sp, color = Pal.OnHighlight)
             }
         }
         items(recs) { TipCard(it) }

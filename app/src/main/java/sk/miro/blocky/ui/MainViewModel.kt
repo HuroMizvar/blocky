@@ -222,6 +222,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return AiExport.build(rows.value, st.budgets, st.profile, st.recommendations, options)
     }
 
+    // ---------- Farebná téma ----------
+    fun loadTheme() { AppTheme.id = runCatching { ThemeId.valueOf(repo.theme) }.getOrDefault(ThemeId.PAPER) }
+    fun setTheme(t: ThemeId) { AppTheme.id = t; repo.theme = t.name }
+
     // ---------- Jazyk ----------
     fun setEnglish(on: Boolean) { repo.english = on }
 

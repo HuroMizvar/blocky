@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(android.graphics.Color.WHITE, android.graphics.Color.WHITE)
         )
+        vm.loadTheme()
         if (savedInstanceState == null) handleShare(intent)
         setContent {
             BlockyTheme {
@@ -176,9 +177,9 @@ class MainActivity : ComponentActivity() {
                                 .clip(RoundedCornerShape(20.dp)).background(Pal.Green)
                                 .clickable(onClickLabel = "Skenovať bloček", onClick = onScan),
                                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                Icon(Icons.Default.QrCodeScanner, null, tint = Color.White, modifier = Modifier.size(26.dp))
+                                Icon(Icons.Default.QrCodeScanner, null, tint = Pal.OnGreen, modifier = Modifier.size(26.dp))
                                 Spacer(Modifier.height(2.dp))
-                                Text("Skenuj", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                                Text("Skenuj", color = Pal.OnGreen, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
                             }
                         } else {
                             val sel = current == t

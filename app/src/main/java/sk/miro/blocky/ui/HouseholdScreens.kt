@@ -36,7 +36,7 @@ private val SYNC_FMT = DateTimeFormatter.ofPattern("d. M. HH:mm")
 /** Farba člena domácnosti – odvodená z mena, rovnaká na všetkých zariadeniach. */
 fun memberColor(name: String): Color {
     val palette = listOf(0xFF1F7A4D, 0xFF2D6A8E, 0xFF9A5B06, 0xFF7A3E9D, 0xFFB3361B, 0xFF3C4BA0, 0xFF0F7C7C, 0xFF8E5A2D)
-    return Color(palette[Math.floorMod(name.hashCode(), palette.size)])
+    return themedFg(Color(palette[Math.floorMod(name.hashCode(), palette.size)]))
 }
 
 /** Kruh s iniciálou člena. */

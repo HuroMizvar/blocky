@@ -1,6 +1,8 @@
 package sk.miro.blocky.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
@@ -43,6 +45,10 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onExport: () -> Unit) 
                 val en = sk.miro.blocky.domain.I18n.english
                 FilterChip(selected = !en, onClick = { vm.setEnglish(false) }, label = { androidx.compose.material3.Text("Slovenčina") })
                 FilterChip(selected = en, onClick = { vm.setEnglish(true) }, label = { androidx.compose.material3.Text("English") })
+            }
+            // farebná téma – každý používateľ si vyberá sám
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ThemeId.entries.forEach { th -> ThemeChip(th, AppTheme.id == th) { vm.setTheme(th) } }
             }
             ScrollableTabRow(selectedTabIndex = tab, containerColor = Pal.Bg, contentColor = Pal.Ink, edgePadding = 12.dp,
                 indicator = { pos ->
@@ -584,4 +590,25 @@ private fun FixedExpenseDialog(initial: sk.miro.blocky.domain.FixedExpense?, onD
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Zrušiť") } }
     )
+}
+
+
+/** Náhľad farebnej témy na výber. */
+@Composable
+private fun RowScope.ThemeChip(t: ThemeId, selected: Boolean, onClick: () -> Unit) {
+    val (bg, card, accent) = when (t) {
+        ThemeId.PAPER -> Triple(Color(0xFFF6F5F1), Color(0xFFFFFFFF), Color(0xFF1F7A4D))
+        ThemeId.FRESH -> Triple(Color(0xFFEEF5EF), Color(0xFF1F7A4D), Color(0xFFF2C14E))
+        ThemeId.NIGHT -> Triple(Color(0xFF111614), Color(0xFF1B221F), Color(0xFF5FD3A0))
+    }
+    Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
+        .border(if (selected) 2.dp else 1.dp, if (selected) Pal.Green else Pal.Line, RoundedCornerShape(14.dp))
+        .clickable(onClick = onClick).padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(9.dp)).background(bg).padding(5.dp)) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(0.7f).clip(RoundedCornerShape(6.dp)).background(card))
+            Box(Modifier.align(Alignment.CenterEnd).size(12.dp).clip(androidx.compose.foundation.shape.CircleShape).background(accent))
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(t.label, fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+    }
 }

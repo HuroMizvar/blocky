@@ -503,18 +503,20 @@ fun BudgetsScreen(vm: MainViewModel, contentPadding: PaddingValues, actions: @Co
     LazyColumn(Modifier.fillMaxSize().background(Pal.Bg), contentPadding = pad(contentPadding)) {
         item { ScreenTitle("Rozpočty", actions = actions) }
         item {
-            BCard(Modifier.padding(bottom = 12.dp), color = Pal.Ink) {
+            BCard(Modifier.padding(bottom = 12.dp), color = Pal.Hero) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                    Icon(Icons.Default.AutoAwesome, null, tint = Pal.OnHero, modifier = Modifier.size(22.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text("Automatické rozpočty", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("Automatické rozpočty", color = Pal.OnHero, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
                 }
                 Spacer(Modifier.height(6.dp))
                 Text("Navrhnem limity podľa celej vašej histórie – o niečo nižšie, ako zvyčajne míňate, aby ste ušetrili.",
-                    color = Color(0xFFD7DDD9), fontSize = 13.sp)
+                    color = Pal.OnHeroMuted, fontSize = 13.sp)
                 Spacer(Modifier.height(12.dp))
                 Button(onClick = { proposal = vm.budgetSuggestions() }, shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Pal.Green, contentColor = Color.White)) {
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (AppTheme.id == ThemeId.FRESH) Pal.Highlight else Pal.Green,
+                        contentColor = if (AppTheme.id == ThemeId.FRESH) Pal.OnHighlight else Pal.OnGreen)) {
                     Text("Nastaviť podľa môjho míňania", fontWeight = FontWeight.Bold)
                 }
             }
