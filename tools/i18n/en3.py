@@ -44,4 +44,5 @@ T.update({
  'Z obdobia {} dní, prepočítané na mesiac (30 dní).':'From a period of {} days, converted to a month (30 days).',
  'Bary a kaviarne':'Bars & cafés','Darčeky':'Gifts','Reštaurácia, fast food':'Restaurant, fast food',
  'Kaviareň, cukráreň, bar':'Café, patisserie, bar','Kvetinárstvo, darčeky':'Florist, gifts',
+ 'E-bloček z e-mailu? Vybrať súbor (PDF / obrázok)':'E-receipt from email? Choose a file (PDF / image)',
 })

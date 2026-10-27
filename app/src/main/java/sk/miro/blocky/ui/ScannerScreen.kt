@@ -103,30 +103,6 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) vm.importReceipts(uris)
     }
-    // plávajúci skener obrazovky
-    val floatingOn = sk.miro.blocky.scan.ScreenScanService.running
-    var askOverlay by remember { mutableStateOf(false) }
-    val projection = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
-        val data = res.data
-        if (res.resultCode == Activity.RESULT_OK && data != null) {
-            sk.miro.blocky.scan.ScreenScanService.start(context, res.resultCode, data)
-            (context as? Activity)?.moveTaskToBack(true)   // používateľ otvorí e-mail / PDF
-        }
-    }
-    val notifPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    fun startFloating() {
-        if (sk.miro.blocky.scan.ScreenScanService.running) {
-            context.startService(android.content.Intent(context, sk.miro.blocky.scan.ScreenScanService::class.java)
-                .setAction(sk.miro.blocky.scan.ScreenScanService.ACTION_STOP))
-            return
-        }
-        if (!sk.miro.blocky.scan.ScreenScanService.canDrawOverlays(context)) { askOverlay = true; return }
-        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED) notifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
-        val mpm = context.getSystemService(android.media.projection.MediaProjectionManager::class.java)
-        projection.launch(mpm.createScreenCaptureIntent())
-    }
-
     // Vibrácia hneď pri rozpoznaní QR (nečaká na odpoveď eKasa).
     LaunchedEffect(Unit) {
         vm.vibe.collect { k ->
@@ -194,16 +170,7 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
                 onOpen = { id -> vm.clearBanner(); onOpenReceipt(id) },
                 onNext = vm::scanNext)
             else HintCard()
-            // plávajúci rámček nad e-mailom / PDF – číta QR kódy priamo z obrazovky
-            OutlinedButton(onClick = { startFloating() },
-                Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFF5A524)),
-                colors = ButtonDefaults.outlinedButtonColors(containerColor = Pal.Card, contentColor = Pal.Ink)) {
-                Icon(Icons.Default.CropFree, null, Modifier.size(18.dp), tint = Color(0xFFD9880B)); Spacer(Modifier.width(8.dp))
-                Text(if (floatingOn) "Vypnúť plávajúci skener" else "Skenovať z e-mailu / PDF (plávajúci rámček)",
-                    fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            }
-            Text("alebo vybrať súbor (PDF / obrázok)", Modifier.align(Alignment.CenterHorizontally)
+            Text("E-bloček z e-mailu? Vybrať súbor (PDF / obrázok)", Modifier.align(Alignment.CenterHorizontally)
                 .clip(RoundedCornerShape(8.dp)).clickable { filePicker.launch(arrayOf("application/pdf", "image/*")) }
                 .padding(horizontal = 8.dp, vertical = 2.dp), fontSize = 13.sp, color = Pal.Green, fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -219,25 +186,6 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
             }
         }
     }
-
-    if (askOverlay) AlertDialog(
-        onDismissRequest = { askOverlay = false },
-        containerColor = Pal.Card,
-        title = { Text("Povoliť plávajúci rámček") },
-        text = {
-            Text("Aby mohol rámček skenera ležať nad e-mailom alebo PDF, povoľte Bločkom „Zobrazovať cez iné aplikácie“. " +
-                "Potom sa vráťte a ťuknite znova. Pri spustení Android požiada o súhlas so snímaním obrazovky – " +
-                "vyberte celú obrazovku. Obraz sa spracúva len v telefóne a nikam sa neposiela.")
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                askOverlay = false
-                context.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    android.net.Uri.parse("package:" + context.packageName)))
-            }) { Text("Otvoriť nastavenie") }
-        },
-        dismissButton = { TextButton(onClick = { askOverlay = false }) { Text("Zrušiť") } }
-    )
 
     question?.let { m ->
         MerchantTypeDialog(m, onPick = { t -> vm.answerMerchant(m, t) }, onLater = { vm.skipMerchant(m) })

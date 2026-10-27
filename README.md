@@ -49,7 +49,6 @@ alebo pri offline doklade, ktorý ešte nie je v eKasa, to aplikácia skúša au
 | Fixné výdavky | Nastavenia → Domácnosť: hypotéka, úver, leasing, nájom… s dňom platby; kategória `FIXNE` vždy na konci prehľadu, súčet „s fixnými výdavkami“ |
 | Správca domácnosti | Zakladateľ = správca (tajomstvo správcu, na serveri len odtlačok). Kľúč správcu `BLOCKY1A:` obnoví správcu na novom telefóne; správca môže odstrániť člena a vymeniť kľúč domácnosti |
 | Farebné témy | Pokojný papier (predvolená), Svieža zelená, Nočný režim – `AppTheme` / `Pal` v Components.kt; ukladá sa len v zariadení |
-| Plávajúci skener | `scan/ScreenScanService`: MediaProjection + overlay (žlto-oranžový rámček, posun, zmena veľkosti, krížik), QR cez ZXing len v pamäti |
 | Vyhľadávanie | Bločky podľa obchodu aj položiek, so súčtom nájdených položiek |
 | Nastavenia | Záložky: Domácnosť · Aktualizácie · Súkromie a dáta · Nastavenie aplikácie (jazyk, téma, AI) |
 | Export | CSV (oddeľovač `;`, UTF‑8 – otvorí sa priamo v Exceli) |
