@@ -51,7 +51,7 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
         /** pri exponenciálnom odstupe WorkManagera ≈ niekoľko dní pokusov */
         const val MAX_ATTEMPTS = 25
         /** zvýšiť, keď sa zmení logika kategorizácie → existujúce bločky sa preradia */
-        const val CATEGORIZER_VERSION = 5
+        const val CATEGORIZER_VERSION = 6
     }
 
     private val dao = AppDatabase.get(context).dao()

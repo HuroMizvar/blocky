@@ -36,7 +36,7 @@ object BudgetPlanner {
         val savingCents: Long get() = (averageCents - budgetCents).coerceAtLeast(0)
     }
 
-    private val VICES = setOf(Category.SLADKOSTI, Category.ALKOHOL, Category.TABAK, Category.RESTAURACIE,
+    private val VICES = setOf(Category.SLADKOSTI, Category.ALKOHOL, Category.TABAK, Category.RESTAURACIE, Category.BARY,
         Category.NAPOJE, Category.MRAZENE_HOTOVE)
     private val SKIP = setOf(Category.ZALOHY, Category.ZLAVY)
     private const val MIN_BASE = 300L   // pod 3 € mesačne rozpočet nemá zmysel

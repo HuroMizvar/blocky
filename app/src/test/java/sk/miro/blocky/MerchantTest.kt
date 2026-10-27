@@ -29,12 +29,23 @@ class MerchantTest {
         assertEquals(MerchantType.RESTAURANT, MerchantResolver.resolve("Pizzeria Napoli s.r.o."))
         assertEquals(MerchantType.HOTEL, MerchantResolver.resolve("Hotel Tatra s.r.o."))
         assertEquals(MerchantType.UNKNOWN, MerchantResolver.resolve("ABC Trade s.r.o."))
+        assertEquals(MerchantType.CAFE_BAR, MerchantResolver.resolve("Starbucks Coffee Slovakia"))
+        assertEquals(MerchantType.CAFE_BAR, MerchantResolver.resolve("Kaviareň Dobre&Dobré"))
+        assertEquals(MerchantType.CAFE_BAR, MerchantResolver.resolve("Irish Pub Dublin s.r.o."))
+        assertEquals(MerchantType.GIFTS, MerchantResolver.resolve("Kvetinárstvo Ruža"))
+        assertEquals(MerchantType.SERVICES, MerchantResolver.resolve("Barber shop Peter"))
     }
 
     @Test fun restaurantTakesWholeReceipt() {
         val pizzeria = "Pizzeria Napoli s.r.o."
         assertEquals(Category.RESTAURACIE, Categorizer.categorize("Pizza Margherita", pizzeria, 890))
         assertEquals(Category.RESTAURACIE, Categorizer.categorize("Pivo 0,5l", pizzeria, 250))
+    }
+
+    @Test fun giftsAndBars() {
+        assertEquals(Category.BARY, Categorizer.categorize("Cappuccino", "Kaviareň Dobre&Dobré", 290))
+        assertEquals(Category.DARCEKY, Categorizer.categorize("Darčeková taška", "Kaufland Slovenská republika v.o.s.", 199))
+        assertEquals(Category.DARCEKY, Categorizer.categorize("Kytica ruží", "Lidl Slovenská republika, v.o.s.", 799))
     }
 
     @Test fun fuelStationShopItems() {

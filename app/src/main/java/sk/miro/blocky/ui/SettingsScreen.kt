@@ -35,7 +35,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onExport: () -> Unit) 
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Späť") } }
         )
     }) { pad ->
-        val tabs = listOf("Domácnosť", "AI", "Aktualizácie", "Súkromie a dáta", "Nastavenie aplikácie")
+        val tabs = listOf("Domácnosť", "Aktualizácie", "Súkromie a dáta", "Nastavenie aplikácie")
         var tab by rememberSaveable { mutableIntStateOf(0) }
         val update by vm.update.collectAsState()
         val hasUpdate = update is UpdateUi.Available || update is UpdateUi.ReadyToInstall
@@ -48,7 +48,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onExport: () -> Unit) 
                     Tab(selected = tab == i, onClick = { tab = i },
                         selectedContentColor = Pal.Ink, unselectedContentColor = Pal.Muted,
                         text = {
-                            BadgedBox(badge = { if (i == 2 && hasUpdate) Badge(containerColor = Pal.Green) }) {
+                            BadgedBox(badge = { if (i == 1 && hasUpdate) Badge(containerColor = Pal.Green) }) {
                                 Text(t, fontWeight = if (tab == i) FontWeight.Bold else FontWeight.Medium)
                             }
                         })
@@ -64,8 +64,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onExport: () -> Unit) 
                         HorizontalDivider(Modifier.padding(top = 20.dp))
                         HouseholdSection(vm)
                     }
-                    1 -> AiSection(vm)
-                    2 -> {
+                    1 -> {
                         UpdateSection(vm)
                         // nástroje na testovanie len vo verzii z GitHubu (nie v Obchode Play)
                         if (sk.miro.blocky.BuildConfig.DEBUG) {
@@ -75,7 +74,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onExport: () -> Unit) 
                             EndpointSection(vm)
                         }
                     }
-                    3 -> {
+                    2 -> {
                         BackupSection(vm)
                         HorizontalDivider(Modifier.padding(top = 20.dp))
                         PrivacySection(vm, onExport, onBack)
@@ -645,6 +644,8 @@ private fun AppSettingsSection(vm: MainViewModel) {
         ThemeId.entries.forEach { th -> ThemeChip(th, AppTheme.id == th) { vm.setTheme(th) } }
     }
     Text("Platí len pre toto zariadenie.", fontSize = 12.sp, color = Pal.Muted, modifier = Modifier.padding(top = 8.dp))
+    HorizontalDivider(Modifier.padding(top = 20.dp))
+    AiSection(vm)
 }
 
 /** Náhľad farebnej témy na výber. */

@@ -51,7 +51,7 @@ alebo pri offline doklade, ktorý ešte nie je v eKasa, to aplikácia skúša au
 | Farebné témy | Pokojný papier (predvolená), Svieža zelená, Nočný režim – `AppTheme` / `Pal` v Components.kt; ukladá sa len v zariadení |
 | Plávajúci skener | `scan/ScreenScanService`: MediaProjection + overlay (žlto-oranžový rámček, posun, zmena veľkosti, krížik), QR cez ZXing len v pamäti |
 | Vyhľadávanie | Bločky podľa obchodu aj položiek, so súčtom nájdených položiek |
-| Nastavenia | Záložky: Domácnosť · AI · Aktualizácie · Súkromie a dáta |
+| Nastavenia | Záložky: Domácnosť · Aktualizácie · Súkromie a dáta · Nastavenie aplikácie (jazyk, téma, AI) |
 | Export | CSV (oddeľovač `;`, UTF‑8 – otvorí sa priamo v Exceli) |
 | Ručný záznam | Výdavok bez QR (trh, služby) |
 
