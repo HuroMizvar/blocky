@@ -21,6 +21,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sk.miro.blocky.data.EkasaClient
+import sk.miro.blocky.domain.FixedExpenses
+import sk.miro.blocky.domain.FixedExpenses.Frequency
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.sp
 
@@ -33,23 +35,11 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onExport: () -> Unit) 
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Späť") } }
         )
     }) { pad ->
-        val tabs = listOf("Domácnosť", "AI", "Aktualizácie", "Súkromie a dáta")
+        val tabs = listOf("Domácnosť", "AI", "Aktualizácie", "Súkromie a dáta", "Nastavenie aplikácie")
         var tab by rememberSaveable { mutableIntStateOf(0) }
         val update by vm.update.collectAsState()
         val hasUpdate = update is UpdateUi.Available || update is UpdateUi.ReadyToInstall
         Column(Modifier.fillMaxSize().padding(pad)) {
-            // jazyk aplikácie – popisy sa neprekladajú, aby sa dal nájsť v oboch jazykoch
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Jazyk / Language", Modifier.weight(1f), fontSize = 13.sp, color = Pal.Muted)
-                val en = sk.miro.blocky.domain.I18n.english
-                FilterChip(selected = !en, onClick = { vm.setEnglish(false) }, label = { androidx.compose.material3.Text("Slovenčina") })
-                FilterChip(selected = en, onClick = { vm.setEnglish(true) }, label = { androidx.compose.material3.Text("English") })
-            }
-            // farebná téma – každý používateľ si vyberá sám
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ThemeId.entries.forEach { th -> ThemeChip(th, AppTheme.id == th) { vm.setTheme(th) } }
-            }
             ScrollableTabRow(selectedTabIndex = tab, containerColor = Pal.Bg, contentColor = Pal.Ink, edgePadding = 12.dp,
                 indicator = { pos ->
                     with(TabRowDefaults) { SecondaryIndicator(Modifier.tabIndicatorOffset(pos[tab]), color = Pal.Green) }
@@ -85,11 +75,12 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onExport: () -> Unit) 
                             EndpointSection(vm)
                         }
                     }
-                    else -> {
+                    3 -> {
                         BackupSection(vm)
                         HorizontalDivider(Modifier.padding(top = 20.dp))
                         PrivacySection(vm, onExport, onBack)
                     }
+                    else -> AppSettingsSection(vm)
                 }
             }
         }
@@ -521,7 +512,7 @@ private fun FixedExpensesSection(vm: MainViewModel) {
     SectionTitle("Fixné výdavky")
     BCard(padding = PaddingValues(16.dp)) {
         Text("Hypotéka, úver, leasing, nájomné a iné pravidelné platby. V prehľade sa ukážu zvlášť ako kategória " +
-            "Fixné výdavky a v súčte „s fixnými výdavkami“.", fontSize = 13.sp, color = Pal.Muted, lineHeight = 18.sp)
+            "Fixné výdavky a v súčte „s fixnými výdavkami“. Sumu v konkrétnom mesiaci upravíte v Prehľade ťuknutím na Fixné výdavky.", fontSize = 13.sp, color = Pal.Muted, lineHeight = 18.sp)
         if (list.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             list.forEach { e ->
@@ -529,15 +520,16 @@ private fun FixedExpensesSection(vm: MainViewModel) {
                     verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(e.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text("${e.kind} · platba ${e.day}. v mesiaci", fontSize = 12.sp, color = Pal.Muted)
+                        Text("${e.kind} · ${sk.miro.blocky.domain.FixedExpenses.describe(e)} · ${e.day}. deň", fontSize = 12.sp, color = Pal.Muted)
                     }
                     Text(eur(e.cents), fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             }
             HorizontalDivider(color = Pal.Track)
             Row(Modifier.padding(top = 8.dp)) {
-                Text("Spolu mesačne", Modifier.weight(1f), fontSize = 14.sp, color = Pal.Muted)
-                Text(eur(list.sumOf { it.cents }), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Priemerne mesačne", Modifier.weight(1f), fontSize = 14.sp, color = Pal.Muted)
+                Text(eur(list.sumOf { it.cents * (if (it.months.isEmpty()) 12 else it.months.size) / 12 }),
+                    fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
             }
         }
         TextButton(onClick = { creating = true }) { Text("+ Pridať fixný výdavok", color = Pal.Green, fontWeight = FontWeight.Bold) }
@@ -557,6 +549,9 @@ private fun FixedExpenseDialog(initial: sk.miro.blocky.domain.FixedExpense?, onD
     var amount by remember { mutableStateOf(initial?.cents?.let { "%d,%02d".format(it / 100, it % 100) } ?: "") }
     var day by remember { mutableIntStateOf(initial?.day ?: 15) }
     var expanded by remember { mutableStateOf(false) }
+    var months by remember { mutableStateOf(initial?.months ?: emptySet()) }
+    var freq by remember { mutableStateOf(FixedExpenses.frequencyOf(months)) }
+    var freqOpen by remember { mutableStateOf(false) }
     val cents = amount.replace(',', '.').replace(" ", "").toDoubleOrNull()?.let { Math.round(it * 100) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -572,11 +567,48 @@ private fun FixedExpenseDialog(initial: sk.miro.blocky.domain.FixedExpense?, onD
                 }
                 OutlinedTextField(name, { name = it.take(40) }, label = { Text("Názov (napr. Hypotéka VÚB)") }, singleLine = true,
                     shape = RoundedCornerShape(14.dp))
-                OutlinedTextField(amount, { amount = it.take(12) }, label = { Text("Suma mesačne €") }, singleLine = true,
+                OutlinedTextField(amount, { amount = it.take(12) }, label = { Text("Suma platby €") }, singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
                 Stepper("Deň platby", day, 1, 31) { day = it }
+                Box {
+                    OutlinedButton(onClick = { freqOpen = true }, shape = RoundedCornerShape(14.dp)) { Text("Platím: ${freq.label}") }
+                    DropdownMenu(freqOpen, { freqOpen = false }) {
+                        Frequency.entries.forEach { f ->
+                            DropdownMenuItem(text = { Text(f.label) }, onClick = {
+                                freqOpen = false; freq = f
+                                val first = months.minOrNull() ?: java.time.LocalDate.now().monthValue
+                                months = when (f) {
+                                    Frequency.MONTHLY -> emptySet()
+                                    Frequency.CUSTOM -> months.ifEmpty { setOf(first) }
+                                    else -> FixedExpenses.monthsFor(f, first)
+                                }
+                            })
+                        }
+                    }
+                }
+                if (freq != Frequency.MONTHLY) {
+                    Text("V ktorých mesiacoch platíte:", fontSize = 13.sp, color = Pal.Muted)
+                    for (rowStart in listOf(1, 5, 9)) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (m in rowStart until rowStart + 4) {
+                            val on = m in months
+                            Box(Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                                .background(if (on) Pal.Green else Color.Transparent)
+                                .border(1.dp, if (on) Pal.Green else Pal.Line, RoundedCornerShape(10.dp))
+                                .clickable {
+                                    // prvý mesiac posunie celý výber (štvrťročne, polročne, ročne), inak vlastný výber
+                                    months = if (freq != Frequency.CUSTOM) FixedExpenses.monthsFor(freq, m)
+                                             else if (on) months - m else months + m
+                                    if (months.isEmpty()) { freq = Frequency.MONTHLY }
+                                }
+                                .padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                Text(FixedExpenses.monthShort(m), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                                    color = if (on) Pal.OnGreen else Pal.Ink)
+                            }
+                        }
+                    }
+                }
                 if (onDelete != null) TextButton(onClick = onDelete) { Text("Zmazať", color = Pal.Red) }
             }
         },
@@ -585,13 +617,33 @@ private fun FixedExpenseDialog(initial: sk.miro.blocky.domain.FixedExpense?, onD
                 onSave(sk.miro.blocky.domain.FixedExpense(
                     id = initial?.id ?: java.util.UUID.randomUUID().toString(),
                     name = name.trim().ifBlank { kind }, kind = kind, cents = cents!!, day = day,
-                    since = initial?.since ?: sk.miro.blocky.domain.Period.current().toString()))
+                    since = initial?.since ?: sk.miro.blocky.domain.Period.current().toString(),
+                    months = if (months.size == 12) emptySet() else months,
+                    overrides = initial?.overrides ?: emptyMap()))
             }) { Text("Uložiť", fontWeight = FontWeight.Bold) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Zrušiť") } }
     )
 }
 
+
+/** Jazyk a farebná téma – nastavuje si každé zariadenie samo (nesynchronizuje sa). */
+@Composable
+private fun AppSettingsSection(vm: MainViewModel) {
+    SectionTitle("Jazyk aplikácie")
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val en = sk.miro.blocky.domain.I18n.english
+        // názvy jazykov sa neprekladajú, aby sa dali nájsť v oboch jazykoch
+        FilterChip(selected = !en, onClick = { vm.setEnglish(false) }, label = { androidx.compose.material3.Text("Slovenčina") })
+        FilterChip(selected = en, onClick = { vm.setEnglish(true) }, label = { androidx.compose.material3.Text("English") })
+    }
+    HorizontalDivider(Modifier.padding(top = 20.dp))
+    SectionTitle("Farebná téma")
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ThemeId.entries.forEach { th -> ThemeChip(th, AppTheme.id == th) { vm.setTheme(th) } }
+    }
+    Text("Platí len pre toto zariadenie.", fontSize = 12.sp, color = Pal.Muted, modifier = Modifier.padding(top = 8.dp))
+}
 
 /** Náhľad farebnej témy na výber. */
 @Composable

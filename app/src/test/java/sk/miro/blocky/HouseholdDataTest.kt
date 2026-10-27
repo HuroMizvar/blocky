@@ -54,4 +54,24 @@ class HouseholdDataTest {
         Period.payDay = 1
         assertEquals(LocalDate.of(2026, 2, 28), FixedExpenses.dueDate(fe(31), YearMonth.of(2026, 2)))
     }
+
+    @Test fun fixedOnlyInSelectedMonths() {
+        Period.payDay = 1
+        val q = fe(15).copy(months = FixedExpenses.monthsFor(FixedExpenses.Frequency.QUARTERLY, 3))
+        assertEquals(setOf(3, 6, 9, 12), q.months)
+        assertEquals(FixedExpenses.Frequency.QUARTERLY, FixedExpenses.frequencyOf(q.months))
+        assertEquals(1, FixedExpenses.payments(listOf(q), YearMonth.of(2026, 9), LocalDate.of(2026, 9, 30)).size)
+        assertEquals(0, FixedExpenses.payments(listOf(q), YearMonth.of(2026, 10), LocalDate.of(2026, 10, 30)).size)
+        val y = fe(15).copy(months = FixedExpenses.monthsFor(FixedExpenses.Frequency.YEARLY, 11))
+        assertEquals(setOf(11), y.months)
+        assertEquals(FixedExpenses.Frequency.CUSTOM, FixedExpenses.frequencyOf(setOf(1, 2)))
+        assertEquals(FixedExpenses.Frequency.MONTHLY, FixedExpenses.frequencyOf(emptySet()))
+    }
+
+    @Test fun fixedOverrideOnlyForThatMonth() {
+        Period.payDay = 1
+        val e = fe(15).copy(cents = 2000, overrides = mapOf("2026-10" to 2543L))
+        assertEquals(2543L, FixedExpenses.payments(listOf(e), YearMonth.of(2026, 10), LocalDate.of(2026, 10, 30)).single().cents)
+        assertEquals(2000L, FixedExpenses.payments(listOf(e), YearMonth.of(2026, 9), LocalDate.of(2026, 9, 30)).single().cents)
+    }
 }

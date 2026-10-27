@@ -75,6 +75,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ---------- Automatické rozpočty ----------
     /** Návrh rozpočtov z celej histórie míňania. */
     fun budgetSuggestions(): List<BudgetPlanner.Suggestion> = BudgetPlanner.plan(rows.value)
+    /** Návrh rozpočtov z vybraného obdobia (prepočet na 30-dňový mesiac). */
+    fun budgetSuggestions(from: java.time.LocalDate, to: java.time.LocalDate): List<BudgetPlanner.Suggestion> =
+        BudgetPlanner.planRange(rows.value, from, to)
+    /** dátum prvého výdavku v aplikácii */
+    fun firstExpenseDate(): java.time.LocalDate? = BudgetPlanner.firstDate(rows.value)
 
     fun applyBudgets(list: List<BudgetPlanner.Suggestion>) = viewModelScope.launch {
         list.forEach { repo.setBudget(it.category, it.budgetCents) }
@@ -233,6 +238,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val fixedExpenses: StateFlow<List<FixedExpense>> = FixedExpenses.list
     fun saveFixed(e: FixedExpense) = viewModelScope.launch { repo.saveFixed(e) }
     fun deleteFixed(id: String) = viewModelScope.launch { repo.deleteFixed(id) }
+    /** skutočná suma fixného výdavku v rozpočtovom mesiaci [m]; null = bežná suma */
+    fun setFixedAmount(id: String, m: java.time.YearMonth, cents: Long?) = viewModelScope.launch {
+        val e = FixedExpenses.list.value.firstOrNull { it.id == id } ?: return@launch
+        val o = if (cents == null || cents == e.cents) e.overrides - m.toString() else e.overrides + (m.toString() to cents)
+        repo.saveFixed(e.copy(overrides = o))
+    }
 
     // ---------- Profil domácnosti ----------
     fun setProfile(p: HouseholdProfile) {

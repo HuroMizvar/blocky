@@ -29,7 +29,9 @@ object BudgetPlanner {
         val typicalCents: Long,
         val budgetCents: Long,
         /** z koľkých mesiacov sa počítalo (0 = odhad z aktuálneho mesiaca) */
-        val months: Int
+        val months: Int,
+        /** z koľkých dní sa počítalo pri výbere obdobia (0 = podľa mesiacov) */
+        val days: Int = 0
     ) {
         val savingCents: Long get() = (averageCents - budgetCents).coerceAtLeast(0)
     }
@@ -59,6 +61,33 @@ object BudgetPlanner {
         if (v.isEmpty()) return 0
         val s = v.sorted()
         return if (s.size % 2 == 1) s[s.size / 2] else (s[s.size / 2 - 1] + s[s.size / 2]) / 2
+    }
+
+    /** priemerná dĺžka mesiaca pri prepočte z dní */
+    const val DAYS_PER_MONTH = 30
+
+    private fun dateOf(ms: Long): LocalDate = java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+
+    /** dátum prvého výdavku v aplikácii (pre voľbu „celá história“) */
+    fun firstDate(rows: List<ItemRow>): LocalDate? = rows.minOfOrNull { it.issuedAt }?.let { dateOf(it) }
+
+    /**
+     * Rozpočty z vybraného obdobia [from]–[to] (vrátane): výdavky kategórie / počet dní × 30 = mesačné míňanie,
+     * z neho sa rovnako ako pri [plan] odvodí o niečo nižší rozpočet.
+     */
+    fun planRange(rows: List<ItemRow>, from: LocalDate, to: LocalDate): List<Suggestion> {
+        if (to.isBefore(from)) return emptyList()
+        val days = java.time.temporal.ChronoUnit.DAYS.between(from, to).toInt() + 1
+        return rows.filter { val d = dateOf(it.issuedAt); !d.isBefore(from) && !d.isAfter(to) }
+            .groupBy { Category.fromName(it.category) }
+            .mapNotNull { (cat, list) ->
+                if (cat in SKIP || !cat.active) return@mapNotNull null
+                val monthly = list.sumOf { it.priceCents } * DAYS_PER_MONTH / days
+                if (monthly < MIN_BASE) return@mapNotNull null
+                val budget = roundDown((monthly * factor(cat)).toLong())
+                if (budget <= 0) null else Suggestion(cat, monthly, monthly, budget, 0, days)
+            }
+            .sortedByDescending { it.averageCents }
     }
 
     fun plan(rows: List<ItemRow>, today: LocalDate = LocalDate.now()): List<Suggestion> {

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -498,6 +499,7 @@ fun BudgetsScreen(vm: MainViewModel, contentPadding: PaddingValues, actions: @Co
     val spent = st.report?.categories?.associate { it.category to it.cents }.orEmpty()
     val states = st.report?.categories?.associate { it.category to it.budgetState }.orEmpty()
     var proposal by remember { mutableStateOf<List<BudgetPlanner.Suggestion>?>(null) }
+    var choosePeriod by remember { mutableStateOf(false) }
     var editCustom by remember { mutableStateOf<CustomCategories.Def?>(null) }
     var newCustom by remember { mutableStateOf(false) }
     LazyColumn(Modifier.fillMaxSize().background(Pal.Bg), contentPadding = pad(contentPadding)) {
@@ -510,10 +512,10 @@ fun BudgetsScreen(vm: MainViewModel, contentPadding: PaddingValues, actions: @Co
                     Text("Automatické rozpočty", color = Pal.OnHero, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
                 }
                 Spacer(Modifier.height(6.dp))
-                Text("Navrhnem limity podľa celej vašej histórie – o niečo nižšie, ako zvyčajne míňate, aby ste ušetrili.",
+                Text("Navrhnem limity podľa vybraného obdobia – o niečo nižšie, ako zvyčajne míňate, aby ste ušetrili.",
                     color = Pal.OnHeroMuted, fontSize = 13.sp)
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = { proposal = vm.budgetSuggestions() }, shape = RoundedCornerShape(14.dp),
+                Button(onClick = { choosePeriod = true }, shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (AppTheme.id == ThemeId.FRESH) Pal.Highlight else Pal.Green,
                         contentColor = if (AppTheme.id == ThemeId.FRESH) Pal.OnHighlight else Pal.OnGreen)) {
@@ -555,6 +557,10 @@ fun BudgetsScreen(vm: MainViewModel, contentPadding: PaddingValues, actions: @Co
         }
     }
 
+    if (choosePeriod) BudgetPeriodDialog(vm.firstExpenseDate(), onDismiss = { choosePeriod = false }) { from, to ->
+        choosePeriod = false
+        proposal = vm.budgetSuggestions(from, to)
+    }
     proposal?.let { list ->
         AutoBudgetDialog(list, st.budgets, onDismiss = { proposal = null }) { chosen ->
             vm.applyBudgets(chosen); proposal = null
@@ -568,6 +574,74 @@ fun BudgetsScreen(vm: MainViewModel, contentPadding: PaddingValues, actions: @Co
     }
     if (newCustom) CustomCategoryDialog(null, onDismiss = { newCustom = false }) { name, icon, color ->
         vm.createCustomCategory(name, icon, color); newCustom = false
+    }
+}
+
+fun dayWord(n: Int) = when (n) { 1 -> "deň"; in 2..4 -> "dni"; else -> "dní" }
+
+/** Výber obdobia, z ktorého sa vypočítajú automatické rozpočty. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BudgetPeriodDialog(first: java.time.LocalDate?, onDismiss: () -> Unit,
+                               onCalc: (java.time.LocalDate, java.time.LocalDate) -> Unit) {
+    val today = java.time.LocalDate.now()
+    val all = first ?: today
+    var from by remember { mutableStateOf(all) }
+    var to by remember { mutableStateOf(today) }
+    var picking by remember { mutableStateOf<Int?>(null) }   // 0 = od, 1 = do
+    val days = java.time.temporal.ChronoUnit.DAYS.between(from, to).toInt() + 1
+    val df = java.time.format.DateTimeFormatter.ofPattern("d. M. yyyy")
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Pal.Card,
+        title = { Text("Obdobie na výpočet", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Z výdavkov v tomto období vypočítam mesačný rozpočet: výdavky ÷ počet dní × 30.",
+                    fontSize = 13.sp, color = Pal.Muted)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(selected = from == all && to == today, onClick = { from = all; to = today },
+                        label = { Text("Celá história") })
+                    FilterChip(selected = from == today.minusDays(29) && to == today,
+                        onClick = { from = maxOf(all, today.minusDays(29)); to = today }, label = { Text("30 dní") })
+                    FilterChip(selected = from == today.minusMonths(3).plusDays(1) && to == today,
+                        onClick = { from = maxOf(all, today.minusMonths(3).plusDays(1)); to = today }, label = { Text("3 mesiace") })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { picking = 0 }, Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                        Text("Od ${from.format(df)}", maxLines = 1)
+                    }
+                    OutlinedButton(onClick = { picking = 1 }, Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                        Text("Do ${to.format(df)}", maxLines = 1)
+                    }
+                }
+                Text(if (days < 1) "Dátum „od“ musí byť pred dátumom „do“."
+                     else "$days ${dayWord(days)}" + (if (days < 14) " · krátke obdobie, návrh môže byť nepresný" else ""),
+                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (days < 1) Pal.Red else if (days < 14) Pal.Amber else Pal.Ink)
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = days >= 1, onClick = { onCalc(from, to) }) { Text("Vypočítať", fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Zrušiť") } }
+    )
+    picking?.let { which ->
+        val zone = java.time.ZoneOffset.UTC
+        val init = if (which == 0) from else to
+        val state = rememberDatePickerState(initialSelectedDateMillis = init.atStartOfDay(zone).toInstant().toEpochMilli())
+        DatePickerDialog(
+            onDismissRequest = { picking = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { ms ->
+                        val d = java.time.Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
+                        if (which == 0) from = d else to = d
+                    }
+                    picking = null
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { picking = null }) { Text("Zrušiť") } }
+        ) { DatePicker(state) }
     }
 }
 
@@ -585,7 +659,9 @@ private fun AutoBudgetDialog(list: List<BudgetPlanner.Suggestion>, current: Map<
             if (list.isEmpty()) Text("Na návrh je zatiaľ málo údajov. Skenujte bločky aspoň týždeň, potom to skúste znova.")
             else Column {
                 val months = list.maxOf { it.months }
-                Text(if (months == 0) "Odhad z tohto mesiaca (zatiaľ nemáte celý mesiac)."
+                val days = list.maxOf { it.days }
+                Text(if (days > 0) "Z obdobia $days ${dayWord(days)}, prepočítané na mesiac (30 dní)."
+                     else if (months == 0) "Odhad z tohto mesiaca (zatiaľ nemáte celý mesiac)."
                      else "Z histórie $months ${if (months == 1) "mesiaca" else "mesiacov"}. Priemer → návrh na mesiac.",
                     fontSize = 13.sp, color = Pal.Muted)
                 Spacer(Modifier.height(8.dp))

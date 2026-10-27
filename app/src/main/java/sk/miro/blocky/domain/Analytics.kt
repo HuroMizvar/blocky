@@ -169,7 +169,7 @@ object Analytics {
 
         val food = cur.filter { Category.fromName(it.category) in Category.FOOD }.sumOf { it.priceCents }
         val fixedPay = FixedExpenses.payments(fixed, month, today)
-        val fixedCents = fixedPay.sumOf { it.expense.cents }
+        val fixedCents = fixedPay.sumOf { it.cents }
         // fixné výdavky sú vždy posledné – zaujímavejšie sú bežné výdavky
         val withFixed = if (fixedCents > 0) categoriesP.filter { it.category != Category.FIXNE } +
             CategoryStat(Category.FIXNE, fixedCents, 0.0, 0, null, null) else categoriesP

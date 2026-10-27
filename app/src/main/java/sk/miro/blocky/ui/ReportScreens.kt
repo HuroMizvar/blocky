@@ -50,6 +50,10 @@ fun ReportScreen(
         MerchantTypeDialog(m, onPick = { t -> vm.answerMerchant(m, t); asking = null }, onLater = { asking = null })
     }
     val r = st.report
+    var editFixed by remember { mutableStateOf(false) }
+    if (editFixed) FixedMonthDialog(r.month, r.fixedPayments, onDismiss = { editFixed = false }) { id, cents ->
+        vm.setFixedAmount(id, r.month, cents)
+    }
     LazyColumn(Modifier.fillMaxSize().background(Pal.Bg), contentPadding = listPadding(contentPadding)) {
         item { MonthSwitcher(st.month, st.months, vm::selectMonth, actions) }
         if (unknown.isNotEmpty()) item {
@@ -124,7 +128,8 @@ fun ReportScreen(
                         Text("Rozpočet ${eur(budgetSum)}", Modifier.weight(1f), fontSize = 13.sp, color = Pal.OnTotalMuted)
                         Text(if (left >= 0) "zostáva ${eur(left)}" + (if (days > 0) " · $days dní" else "")
                              else "prekročené o ${eur(-left)}",
-                            fontSize = 13.sp, color = if (left >= 0) Pal.Muted else Pal.Red, fontWeight = FontWeight.SemiBold)
+                            fontSize = 13.sp, color = if (left >= 0) Pal.OnTotal else if (AppTheme.id == ThemeId.FRESH) Pal.Highlight else Pal.Red,
+                            fontWeight = FontWeight.SemiBold)
                     }
                 } else {
                     Text("Nastaviť mesačný rozpočet", Modifier.clickable(onClick = onOpenBudgets).padding(vertical = 6.dp),
@@ -165,8 +170,9 @@ fun ReportScreen(
                     if (c.category == Category.FIXNE) ListRow(
                         leading = { CatBadge(c.category, 40) },
                         title = c.category.label,
-                        subtitle = "${r.fixedPayments.size}× · mimo bežných výdavkov · Nastavenia → Domácnosť",
-                        amount = c.cents
+                        subtitle = "${r.fixedPayments.size}× · ťuknutím upravíte sumu",
+                        amount = c.cents,
+                        onClick = { editFixed = true }
                     ) else ListRow(
                         leading = { CatBadge(c.category, 40) },
                         title = c.category.label,
@@ -309,6 +315,50 @@ private fun ListRow(
         }
         if (onClick != null) Icon(Icons.Default.ChevronRight, null, tint = Pal.Faint, modifier = Modifier.size(20.dp))
     }
+}
+
+/** Úprava skutočných súm fixných výdavkov v jednom mesiaci (napr. paušál 20 € → 25,43 €). */
+@Composable
+private fun FixedMonthDialog(month: YearMonth, payments: List<sk.miro.blocky.domain.FixedPayment>, onDismiss: () -> Unit,
+                             onSave: (id: String, cents: Long?) -> Unit) {
+    val fmt = { c: Long -> "%d,%02d".format(c / 100, c % 100) }
+    val values = remember(payments) { mutableStateMapOf<String, String>().apply { payments.forEach { put(it.expense.id, fmt(it.cents)) } } }
+    fun parse(s: String) = s.replace(',', '.').replace(" ", "").toDoubleOrNull()?.let { Math.round(it * 100) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Pal.Card,
+        title = { Text("Fixné výdavky – ${monthName(month)}", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Upravte skutočne zaplatenú sumu. Zmena platí len pre tento mesiac.", fontSize = 13.sp, color = Pal.Muted)
+                payments.forEach { p ->
+                    val e = p.expense
+                    Column {
+                        OutlinedTextField(values[e.id] ?: "", { values[e.id] = it.take(12) },
+                            label = { Text(e.name) }, singleLine = true, shape = RoundedCornerShape(14.dp),
+                            supportingText = {
+                                Text("bežne ${eur(e.cents)} · zaplatené ${p.date.dayOfMonth}. ${p.date.monthValue}.", fontSize = 12.sp)
+                            },
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
+                        if (p.edited) TextButton(onClick = { values[e.id] = fmt(e.cents) }) {
+                            Text("Vrátiť bežnú sumu ${eur(e.cents)}", color = Pal.Green)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = payments.all { parse(values[it.expense.id] ?: "")?.let { c -> c >= 0 } == true }, onClick = {
+                payments.forEach { p ->
+                    val c = parse(values[p.expense.id] ?: "") ?: return@forEach
+                    if (c != p.cents) onSave(p.expense.id, if (c == p.expense.cents) null else c)
+                }
+                onDismiss()
+            }) { Text("Uložiť", fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Zrušiť") } }
+    )
 }
 
 fun tipWord(n: Int) = when (n) { 1 -> "tip na úsporu"; in 2..4 -> "tipy na úsporu"; else -> "tipov na úsporu" }
