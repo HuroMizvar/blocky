@@ -540,6 +540,7 @@ private fun FixedExpensesSection(vm: MainViewModel) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FixedExpenseDialog(initial: sk.miro.blocky.domain.FixedExpense?, onDismiss: () -> Unit, onDelete: (() -> Unit)?,
                                onSave: (sk.miro.blocky.domain.FixedExpense) -> Unit) {
@@ -628,6 +629,7 @@ private fun FixedExpenseDialog(initial: sk.miro.blocky.domain.FixedExpense?, onD
 
 
 /** Jazyk a farebná téma – nastavuje si každé zariadenie samo (nesynchronizuje sa). */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppSettingsSection(vm: MainViewModel) {
     SectionTitle("Jazyk aplikácie")

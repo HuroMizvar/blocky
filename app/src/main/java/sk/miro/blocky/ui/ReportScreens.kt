@@ -51,7 +51,7 @@ fun ReportScreen(
     }
     val r = st.report
     var editFixed by remember { mutableStateOf(false) }
-    if (editFixed) FixedMonthDialog(r.month, r.fixedPayments, onDismiss = { editFixed = false }) { id, cents ->
+    if (editFixed && r != null) FixedMonthDialog(r.month, r.fixedPayments, onDismiss = { editFixed = false }) { id, cents ->
         vm.setFixedAmount(id, r.month, cents)
     }
     LazyColumn(Modifier.fillMaxSize().background(Pal.Bg), contentPadding = listPadding(contentPadding)) {
