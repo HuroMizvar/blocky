@@ -338,9 +338,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Volá sa pri návrate do aplikácie. */
     fun onForeground() { syncSoon(); refinePhoneAi() }
 
+    private val _hasAdmin = MutableStateFlow<Boolean?>(null)
+    /** domácnosť má správcu (null = neznáme) */
+    val householdHasAdmin: StateFlow<Boolean?> = _hasAdmin
+
     fun refreshMembers() = viewModelScope.launch {
         _members.value = try { repo.sync.members() } catch (e: Exception) { _members.value }
+        _hasAdmin.value = repo.sync.householdHasAdmin()
     }
+
+    fun claimAdmin() = syncAction("Ste správca domácnosti. Uložte si kľúč správcu.") { repo.sync.claimAdmin() }
 
     // ---------- Súkromie ----------
     private val _autoUpdate = MutableStateFlow(repo.autoUpdate)

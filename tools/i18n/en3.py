@@ -20,3 +20,9 @@ T.update({
  'Vypnúť skener':'Turn off scanner','Zmeniť veľkosť':'Resize','Plávajúci skener':'Floating scanner',
  'Plávajúci skener je zapnutý':'Floating scanner is on','Obraz sa spracúva len v telefóne.':'The image is processed only on the phone.','Vypnúť':'Turn off',
 })
+T.update({
+ 'Domácnosť nemá správcu':'The household has no admin',
+ 'Napr. po preinštalovaní aplikácie. Správca môže odstraňovať členov a vymeniť kľúč domácnosti.':'E.g. after reinstalling the app. The admin can remove members and replace the household key.',
+ 'Stať sa správcom':'Become admin','Ste správca domácnosti. Uložte si kľúč správcu.':'You are the household admin. Save the admin key.',
+ 'Domácnosť už má správcu.':'The household already has an admin.',
+})

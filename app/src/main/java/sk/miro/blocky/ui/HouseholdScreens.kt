@@ -100,6 +100,15 @@ fun HouseholdSection(vm: MainViewModel) {
                 TextButton(onClick = { rename = true }) { Text("Zmeniť meno") }
             }
             if (vm.isAdmin) Text("Ste správca domácnosti – môžete odstraňovať členov.", fontSize = 12.sp, color = Pal.Green)
+            val hasAdmin by vm.householdHasAdmin.collectAsState()
+            if (!vm.isAdmin && hasAdmin == false) {
+                Column(Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(14.dp)).background(Pal.AmberSoft).padding(12.dp)) {
+                    Text("Domácnosť nemá správcu", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Pal.Amber)
+                    Text("Napr. po preinštalovaní aplikácie. Správca môže odstraňovať členov a vymeniť kľúč domácnosti.",
+                        fontSize = 12.sp, color = Pal.Ink)
+                    TextButton(onClick = vm::claimAdmin) { Text("Stať sa správcom", fontWeight = FontWeight.Bold) }
+                }
+            }
             Spacer(Modifier.height(10.dp))
             Text("Členovia (${members.size}/${HouseholdSync.MAX_MEMBERS})", fontSize = 13.sp, color = Pal.Muted, fontWeight = FontWeight.SemiBold)
             members.forEach { m ->

@@ -254,6 +254,29 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
         }.sortedWith(compareBy({ !it.me }, { !it.admin }, { it.name }))
     }
 
+    /** Má domácnosť správcu? (null = nepodarilo sa zistiť) */
+    suspend fun householdHasAdmin(): Boolean? = withContext(Dispatchers.IO) {
+        if (!enabled) return@withContext null
+        runCatching { rest().get(home)?.let { FirestoreRest.fieldStr(it, "adminHash") != null } }.getOrNull()
+    }
+
+    /**
+     * Domácnosť bez správcu (zakladateľ preinštaloval aplikáciu, staršia verzia): správcom sa môže stať
+     * ktorýkoľvek člen. Ak už správca existuje, nič sa nezmení.
+     */
+    suspend fun claimAdmin() = withContext(Dispatchers.IO) {
+        check(enabled)
+        val r = rest(); r.token()
+        val doc = r.get(home)
+        check(doc == null || FirestoreRest.fieldStr(doc, "adminHash") == null) { "Domácnosť už má správcu." }
+        val secret = SyncCrypto.newKey()
+        prefs.edit().putString("adminSecret", SyncCrypto.keyToText(secret)).putBoolean("adminChecked", true).apply()
+        r.commit(listOf(r.writeDoc(home, JSONObject().put("adminHash", FirestoreRest.str(Invite.adminHash(secret, hid))),
+            mask = listOf("adminHash"))))
+        writeMember(r, hid, key, memberName ?: "Správca", admin = true)
+        publish()
+    }
+
     // ---------- správca, meno, odstránenie členov ----------
 
     /** Zmena mena člena – prepíše sa aj pri bločkoch, ktoré toto zariadenie nahralo. */
@@ -313,7 +336,7 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
                 mask = listOf("adminHash"))))
             writeMember(r, hid, k, memberName ?: "Správca", admin = true)
         }
-        prefs.edit().putBoolean("adminChecked", true).apply()
+        // správcu sme nenašli (napr. zakladateľ preinštaloval aplikáciu) – skúsime znova pri ďalšej synchronizácii
     }
 
     // ---------- kontrola duplicity u ostatných členov ----------
