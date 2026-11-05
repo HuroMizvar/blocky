@@ -28,4 +28,18 @@ class BudgetRangeTest {
         assertEquals(from, BudgetPlanner.firstDate(rows))
         assertTrue(BudgetPlanner.planRange(rows, from, from.minusDays(1)).isEmpty())
     }
+
+    @Test fun compareOnlyToSamePartOfPreviousMonth() {
+        sk.miro.blocky.domain.Period.payDay = 1
+        val today = LocalDate.of(2026, 10, 10)
+        // september: 5 nákupov po 10 € v prvých 10 dňoch + 5 po 100 € neskôr
+        val rows = (1..5).map { row(Category.MLIECNE, 1_000, LocalDate.of(2026, 9, it)) } +
+            (1..5).map { row(Category.MLIECNE, 10_000, LocalDate.of(2026, 9, 20 + it)) } +
+            listOf(row(Category.MLIECNE, 6_000, LocalDate.of(2026, 10, 5)))
+        val r = sk.miro.blocky.domain.Analytics.report(rows, java.time.YearMonth.of(2026, 10), emptyMap(), today)
+        assertEquals(5_000L, r.compareCents)          // len 1.–10. september
+        // minulý mesiac s 1 malým bločkom → bez porovnania
+        val few = listOf(row(Category.MLIECNE, 300, LocalDate.of(2026, 9, 2)), row(Category.MLIECNE, 6_000, LocalDate.of(2026, 10, 5)))
+        assertNull(sk.miro.blocky.domain.Analytics.report(few, java.time.YearMonth.of(2026, 10), emptyMap(), today).compareCents)
+    }
 }

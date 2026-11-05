@@ -24,6 +24,8 @@ enum class Category(private val baseLabel: String, val essential: Boolean, val b
     /** kaviarne, cukrárne, bary, krčmy, puby */
     BARY("Bary a kaviarne", false, null),
     UBYTOVANIE("Ubytovanie", false, null),
+    /** letenky, vlak a autobus na cesty, cestovné kancelárie, cestovné poistenie */
+    CESTOVANIE("Cestovanie", false, null),
     VOLNY_CAS("Wellness, šport, zábava", false, null),
     OBLECENIE("Oblečenie a obuv", false, null),
     /** darčeky, kvety, darčekové poukazy a balenia, pohľadnice */
@@ -74,6 +76,8 @@ object Categorizer {
     // Poradie je dôležité: špecifickejšie kategórie skôr (napr. "pivo" pred "nápoje").
     private val rules: List<Pair<Category, List<String>>> = listOf(
         Category.ZLAVY to listOf("zlava", "kupon", "bonus", "vernostn"),
+        Category.CESTOVANIE to listOf("letenk", "miestenk", "cestovny listok", "cestovne poistenie", "zajazd",
+            "palubn", "batozin", "letiskov"),
         Category.DARCEKY to listOf("darcek", "darc.", "darcekov", "darkov", "gift", "poukaz", "prianie", "blahopraj",
             "pohladnic", "baliaci papier", "darcekova taska", "kytica", "rezane kvet", "ruza ", "ruze ", "tulipan"),
         // pred TRVANLIVE kvôli slovu „olej“ (motorový olej ≠ slnečnicový)
@@ -162,7 +166,7 @@ object Categorizer {
     data class Result(val category: Category, val byAi: Boolean = false)
 
     /** Kategórie, ktoré AI nesmie navrhnúť v obchode s tovarom (napr. „espresso“ v Lidli je káva, nie kaviareň). */
-    private val notInShops = setOf(Category.RESTAURACIE, Category.BARY, Category.UBYTOVANIE, Category.VOLNY_CAS, Category.SLUZBY)
+    private val notInShops = setOf(Category.RESTAURACIE, Category.BARY, Category.CESTOVANIE, Category.UBYTOVANIE, Category.VOLNY_CAS, Category.SLUZBY)
     private val shopTypes = setOf(MerchantType.GROCERY, MerchantType.DRUGSTORE, MerchantType.PHARMACY, MerchantType.HOME)
 
     /**

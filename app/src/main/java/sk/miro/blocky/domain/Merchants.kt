@@ -12,6 +12,7 @@ enum class MerchantType(val label: String, val single: Category?, val fallback: 
     CAFE_BAR("Kaviareň, cukráreň, bar", Category.BARY, Category.BARY),
     GIFTS("Kvetinárstvo, darčeky", Category.DARCEKY, Category.DARCEKY),
     HOTEL("Hotel, ubytovanie", Category.UBYTOVANIE, Category.UBYTOVANIE),
+    TRAVEL("Cestovanie, doprava", Category.CESTOVANIE, Category.CESTOVANIE),
     WELLNESS("Wellness, šport, zábava", Category.VOLNY_CAS, Category.VOLNY_CAS),
     PHARMACY("Lekáreň", null, Category.ZDRAVIE),
     DRUGSTORE("Drogéria", null, Category.DROGERIA),
@@ -53,6 +54,9 @@ object MerchantResolver {
             "cocktail", "koktejl", "lounge", "pivaren", "irish"),
         MerchantType.GIFTS to listOf("kvetinarstvo", "kvetiny", "kvety", "florist", "flower", "darcek", "darceky",
             "gift", "suvenir", "suveniry"),
+        MerchantType.TRAVEL to listOf("cestovna kancelaria", "cestovna agentura", "ryanair", "wizz", "austrian airlines",
+            "lufthansa", "smartwings", "letisko", "airport", "airlines", "flixbus", "regiojet", "zssk", "leo express",
+            "slovak lines", "ceske drahy", "obb", "invia", "tui", "fischer", "satur", "hechter", "kartago"),
         MerchantType.HOTEL to listOf("hotel", "penzion", "ubytovanie", "apartman", "chata", "hostel", "kemp", "camping"),
         MerchantType.WELLNESS to listOf("wellness", "aquapark", "kupele", "spa", "sauna", "fitness", "fitko", "gym",
             "bazen", "kino", "cinema", "cinemax", "lanovk", "ski", "decathlon", "sportisimo", "intersport", "hervis",
@@ -72,7 +76,7 @@ object MerchantResolver {
             "autocentrum", "autoskla", "autolakovna", "vianor", "euromaster", "autobaterie"),
         MerchantType.SERVICES to listOf("kadernictvo", "kadernik", "barber", "salon",
             "posta", "slovenska posta", "cistiaren", "oprava", "servis", "parkovanie", "parking", "taxi", "bolt",
-            "zssk", "regiojet", "leo express", "dpb", "slovak lines")
+            "dpb")
     )
 
     private fun tokenMatches(padded: String, token: String): Boolean =

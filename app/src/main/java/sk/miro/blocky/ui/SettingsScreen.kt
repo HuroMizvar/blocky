@@ -210,9 +210,14 @@ private fun PrivacySection(vm: MainViewModel, onExport: () -> Unit, onDeleted: (
                 "dostane len zašifrovaný text – kľúč majú iba členovia domácnosti.",
             "Bez Google účtu, bez reklám, bez analytiky a bez reklamného ID. Pre domácnosť sa vytvorí anonymný prístup bez mena a e-mailu.",
             "QR kód sa číta priamo v telefóne. Obraz z kamery sa nikam neposiela.",
-            "Kategórie a tipy počítajú pravidlá v aplikácii – žiadna umelá inteligencia a nič sa nepoužíva na jej trénovanie.",
-            "Sieť sa používa len na: (1) načítanie položiek bločku z eKasa Finančnej správy SR podľa ID dokladu, " +
-                "(2) kontrolu aktualizácií na GitHube (dá sa vypnúť nižšie), (3) synchronizáciu domácnosti, ak ju zapnete."
+            "Tipy počítajú pravidlá v aplikácii. Kategórie určujú pravidlá a vstavaná AI, ktorá beží len v tomto telefóne " +
+                "a učí sa len z vašich opráv. Vaše údaje sa nepoužívajú na trénovanie AI mimo telefónu.",
+            "AI telefónu (Google, voliteľná, predvolene vypnutá) spracuje názvy položiek v telefóne; Google pri nej zbiera diagnostické údaje.",
+            if (vm.updater.enabled)
+                "Sieť sa používa len na: (1) načítanie položiek bločku z eKasa Finančnej správy SR podľa ID dokladu, " +
+                    "(2) kontrolu aktualizácií na GitHube (dá sa vypnúť v záložke Aktualizácie), (3) synchronizáciu domácnosti, ak ju zapnete."
+            else "Sieť sa používa len na: (1) načítanie položiek bločku z eKasa Finančnej správy SR podľa ID dokladu, " +
+                "(2) synchronizáciu domácnosti, ak ju zapnete."
         ).forEach { line ->
             Row(Modifier.padding(vertical = 4.dp)) {
                 Text("•", Modifier.width(14.dp), color = Pal.Green, fontWeight = FontWeight.Bold)
@@ -230,7 +235,10 @@ private fun PrivacySection(vm: MainViewModel, onExport: () -> Unit, onDeleted: (
         onDismissRequest = { confirm = false },
         containerColor = Pal.Card,
         title = { Text("Zmazať všetky dáta?") },
-        text = { Text("Natrvalo sa zmažú všetky bločky, položky, rozpočty, pravidlá kategórií, prevádzky a profil v tomto telefóne. Ak ste v spoločnej domácnosti, odídete z nej (údaje ostatných členov ostanú). Nedá sa to vrátiť.") },
+        text = { Text("Natrvalo sa zmažú všetky bločky, položky, rozpočty, fixné výdavky, vlastné kategórie, pravidlá, prevádzky, profil " +
+            "a heslo záloh v tomto telefóne a vypne sa automatická záloha. Súbory záloh, ktoré ste uložili mimo aplikácie, zmažte sami. " +
+            "Ak ste v spoločnej domácnosti, odídete z nej – bločky, ktoré ste do nej pridali, ostanú ostatným členom " +
+            "(celú domácnosť zo servera zmaže Nastavenia → Domácnosť → Zmazať údaje domácnosti zo servera). Nedá sa to vrátiť.") },
         confirmButton = {
             TextButton(onClick = { confirm = false; vm.deleteEverything(onDeleted) }) { Text("Zmazať", color = Pal.Red, fontWeight = FontWeight.Bold) }
         },

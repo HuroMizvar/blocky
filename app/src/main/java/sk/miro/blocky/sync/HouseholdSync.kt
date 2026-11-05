@@ -458,7 +458,10 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
     private suspend fun pull(r: FirestoreRest, coll: String, pref: String, apply: suspend (JSONObject) -> Unit) {
         val since = prefs.getString(pref, null)
         var max: Instant? = if (since == null) null else runCatching { Instant.parse(since) }.getOrNull()
-        for (doc in r.changedSince(home, coll, since)) {
+        // 5 minút prekryv: zápis iného člena s rovnakým alebo o chvíľu starším časom servera sa nestratí
+        // (opakované spracovanie toho istého záznamu nič nezmení)
+        val from = max?.minusSeconds(300)?.toString()
+        for (doc in r.changedSince(home, coll, from)) {
             try { apply(doc) } catch (e: Exception) { /* poškodený záznam preskočíme */ }
             val t: Instant? = FirestoreRest.fieldTime(doc, "updatedAt")?.let { runCatching { Instant.parse(it) }.getOrNull() }
             val cur = max

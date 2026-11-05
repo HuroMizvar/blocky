@@ -89,7 +89,12 @@ fun ReportScreen(
         }
 
         item {
-            val budgetSum = st.budgets.values.sum()
+            // rozpočet sa porovnáva len s výdavkami v kategóriách, ktoré rozpočet majú
+            val budgeted = st.budgets.filterKeys { it.active && it != Category.ZALOHY && it != Category.ZLAVY && it != Category.FIXNE }
+            val budgetSum = budgeted.values.sum()
+            val budgetSpent = r.categories.filter { it.category in budgeted.keys }.sumOf { it.cents }
+            val partial = r.categories.any { it.cents > 0 && it.category !in budgeted.keys &&
+                it.category != Category.FIXNE && it.category != Category.ZLAVY }
             val isCurrent = r.month == Period.current()
             BCard(Modifier.padding(top = 12.dp), color = Pal.Total) {
               CompositionLocalProvider(LocalContentColor provides Pal.OnTotal) {
@@ -99,11 +104,12 @@ fun ReportScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(eur(r.totalCents), fontSize = 38.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp)
                     Spacer(Modifier.width(10.dp))
-                    deltaPct(r.totalCents, r.prevTotalCents.takeIf { it > 0 })?.let { d ->
+                    deltaPct(r.totalCents, r.compareCents)?.let { d ->
                         val good = d <= 0
-                        if (AppTheme.id == ThemeId.FRESH) Tag((if (d > 0) "+" else if (d < 0) "−" else "") + "${kotlin.math.abs(d)} % vs. min. mes.",
-                            Pal.OnHighlight, Pal.Highlight)
-                        else Tag((if (d > 0) "+" else if (d < 0) "−" else "") + "${kotlin.math.abs(d)} % vs. min. mes.",
+                        val label = (if (d > 0) "+" else if (d < 0) "−" else "") + "${kotlin.math.abs(d)} % " +
+                            (if (isCurrent) "vs. min. mes. k dnešku" else "vs. min. mes.")
+                        if (AppTheme.id == ThemeId.FRESH) Tag(label, Pal.OnHighlight, Pal.Highlight)
+                        else Tag(label,
                             if (good) Pal.Green else Pal.Amber, if (good) Pal.GreenSoft else Pal.AmberSoft)
                     }
                 }
@@ -118,19 +124,22 @@ fun ReportScreen(
                 }
                 Spacer(Modifier.height(12.dp))
                 if (budgetSum > 0) {
-                    ProgressTrack(r.totalCents.toFloat() / budgetSum,
-                        if (r.totalCents > budgetSum) Pal.Red else if (AppTheme.id == ThemeId.FRESH) Pal.OnTotal else Pal.Green,
+                    ProgressTrack(budgetSpent.toFloat() / budgetSum,
+                        if (budgetSpent > budgetSum) Pal.Red else if (AppTheme.id == ThemeId.FRESH) Pal.OnTotal else Pal.Green,
                         height = 10, track = Pal.TotalTrack)
                     Spacer(Modifier.height(8.dp))
-                    val left = budgetSum - r.totalCents
+                    val left = budgetSum - budgetSpent
                     val days = if (isCurrent) Period.length(r.month) - Period.dayIndex(r.month, LocalDate.now()) else 0
                     Row {
-                        Text("Rozpočet ${eur(budgetSum)}", Modifier.weight(1f), fontSize = 13.sp, color = Pal.OnTotalMuted)
+                        Text((if (partial) "Rozpočty kategórií " else "Rozpočet ") + eur(budgetSum), Modifier.weight(1f),
+                            fontSize = 13.sp, color = Pal.OnTotalMuted)
                         Text(if (left >= 0) "zostáva ${eur(left)}" + (if (days > 0) " · $days dní" else "")
                              else "prekročené o ${eur(-left)}",
                             fontSize = 13.sp, color = if (left >= 0) Pal.OnTotal else if (AppTheme.id == ThemeId.FRESH) Pal.Highlight else Pal.Red,
                             fontWeight = FontWeight.SemiBold)
                     }
+                    if (partial) Text("minuté v nich ${eur(budgetSpent)} · ostatné kategórie rozpočet nemajú",
+                        fontSize = 12.sp, color = Pal.OnTotalMuted)
                 } else {
                     Text("Nastaviť mesačný rozpočet", Modifier.clickable(onClick = onOpenBudgets).padding(vertical = 6.dp),
                         color = if (AppTheme.id == ThemeId.FRESH) Pal.Highlight else Pal.Green, fontWeight = FontWeight.Bold, fontSize = 14.sp)

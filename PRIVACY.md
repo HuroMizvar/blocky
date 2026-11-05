@@ -1,6 +1,6 @@
 # Zásady ochrany osobných údajov – aplikácia Bločky
 
-*Platné od 15. 10. 2026*
+*Platné od 5. 11. 2026*
 
 Bločky je aplikácia na skenovanie pokladničných bločkov eKasa a prehľad osobných výdavkov.
 Aplikácia je navrhnutá tak, aby vaše údaje zostali súkromné. Nie je aplikáciou Finančnej správy SR ani iného štátneho orgánu a nekoná v ich mene. Položky bločkov pochádzajú zo služby eKasa – Over doklad Finančnej správy SR: https://opd.financnasprava.sk/
@@ -9,11 +9,12 @@ Aplikácia je navrhnutá tak, aby vaše údaje zostali súkromné. Nie je aplik�
 
 | Údaje | Kde sú uložené | Kto k nim má prístup |
 |---|---|---|
-| Bločky, položky, ceny, obchody, kategórie, rozpočty, profil domácnosti | len v súkromnom úložisku aplikácie vo vašom telefóne | len vy |
+| Bločky, položky, ceny, obchody, kategórie, rozpočty, fixné výdavky, profil domácnosti | len v súkromnom úložisku aplikácie vo vašom telefóne | len vy |
 | Obraz z kamery pri skenovaní | nikam sa neukladá ani neodosiela; QR kód sa číta priamo v telefóne | nikto |
 | E-bločky (PDF, obrázky) zdieľané z e-mailu | QR kód sa prečíta priamo v telefóne, súbor sa po prečítaní zahodí a nikam sa neodosiela | nikto |
 
-Aplikácia **nepoužíva reklamy, analytiku ani reklamné identifikátory**, údaje **nepredáva** a **nepoužíva ich na trénovanie umelej inteligencie**.
+Aplikácia **nepoužíva reklamy, analytiku ani reklamné identifikátory**, údaje **nepredáva** a **nepoužíva ich na trénovanie umelej inteligencie** mimo vášho telefónu.
+Kategórie položiek určujú pravidlá a vstavaná AI, ktorá beží len v telefóne a učí sa len z vašich opráv.
 Zálohovanie do cloudu Android je pre aplikáciu vypnuté.
 
 ## 2. Kedy aplikácia komunikuje so serverom
@@ -26,6 +27,8 @@ Zálohovanie do cloudu Android je pre aplikáciu vypnuté.
      kľúč majú iba členovia domácnosti (v pozývacom QR kóde). Google ani autor aplikácie obsah neprečítajú.
    - Na prístup sa použije **anonymný identifikátor** Firebase – bez mena, e-mailu či Google účtu.
      Meno, ktoré zadáte pre domácnosť, je tiež zašifrované.
+   - Ako pri každom spojení so serverom, Google ako prevádzkovateľ služby vidí technické údaje spojenia
+     (IP adresu, čas a objem prenosu). Autor aplikácie ich nevyhodnocuje.
 3. **AI telefónu (voliteľné)** – na podporovaných telefónoch môžete zapnúť Google Gemini Nano (ML Kit).
    Názvy položiek sa spracujú v telefóne; Google ML Kit však posiela Googlu diagnostické údaje
    (model telefónu, verzia aplikácie, veľkosť vstupu, chybové kódy). Bez zapnutia sa ML Kit nepoužíva.
@@ -42,9 +45,11 @@ zálohe sa heslo uloží v telefóne chránené systémovým úložiskom kľúč
 
 ## 3. Uchovávanie a vymazanie údajov
 
-- **V telefóne:** Nastavenia → Súkromie → *Zmazať všetko* natrvalo zmaže všetky údaje. Odinštalovanie aplikácie ich zmaže tiež.
-- **Spoločná domácnosť:** Nastavenia → Spoločná domácnosť → *Zmazať údaje domácnosti zo servera* zmaže všetky
-  zašifrované údaje domácnosti zo servera. *Odísť z domácnosti* odstráni vaše členstvo.
+- **V telefóne:** Nastavenia → Súkromie a dáta → *Zmazať všetko* natrvalo zmaže všetky údaje v telefóne vrátane hesla záloh
+  a vypne automatickú zálohu. Súbory záloh, ktoré ste uložili mimo aplikácie, zmažete sami. Odinštalovanie aplikácie zmaže údaje tiež.
+- **Spoločná domácnosť:** Nastavenia → Domácnosť → *Zmazať údaje domácnosti zo servera* zmaže všetky
+  zašifrované údaje domácnosti zo servera. *Odísť z domácnosti* odstráni vaše členstvo; bločky, ktoré ste do domácnosti
+  pridali, ostanú ostatným členom, kým domácnosť nezmažú.
 - Ak nemáte prístup k aplikácii, požiadajte o vymazanie e-mailom (kontakt nižšie) – uveďte, že ide o aplikáciu Bločky.
 
 ## 4. Vaše práva (GDPR)
@@ -73,5 +78,5 @@ Bločky stores receipts, items and budgets **only on your device**. No ads, no a
 no AI training. The app contacts: (1) the Slovak Financial Administration eKasa service with the receipt ID to fetch receipt items;
 (2) optionally Google Firebase (EU) for household sync – data is **end-to-end encrypted** on the device, with an anonymous ID;
 (3) optionally Google ML Kit (Gemini Nano) on supported phones, which sends diagnostic data to Google.
-Delete everything in Settings → Privacy → Delete everything; delete household server data in Settings → Household.
+Delete everything in Settings → Privacy & data → Delete everything; delete household server data in Settings → Household.
 Contact: the e-mail listed on the app's Google Play page.

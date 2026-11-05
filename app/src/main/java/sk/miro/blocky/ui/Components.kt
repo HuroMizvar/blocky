@@ -47,6 +47,12 @@ private val EN = Locale.forLanguageTag("en-GB")
 /** jazyk pre názvy mesiacov a dní */
 fun uiLocale(): Locale = if (sk.miro.blocky.domain.I18n.english) EN else SK
 
+/** Kategórie zoradené podľa abecedy v jazyku aplikácie (slovensky: „ch“ za „h“, diakritika správne). */
+fun List<Category>.sortedByLabel(): List<Category> {
+    val col = java.text.Collator.getInstance(uiLocale())
+    return sortedWith { a, b -> col.compare(sk.miro.blocky.domain.I18n.tr(a.label), sk.miro.blocky.domain.I18n.tr(b.label)) }
+}
+
 /**
  * Text s prekladom: v celom balíku ui sa namiesto material3.Text použije tento (rovnaké parametre),
  * takže sa preloží každý text v aplikácii. Názvy položiek z bločkov v slovníku nie sú, ostanú bez zmeny.
@@ -311,6 +317,7 @@ fun catStyle(c: Category): CatStyle = when (c) {
     Category.RESTAURACIE -> CatStyle(Color(0xFFFBEADF), Color(0xFFB4531F), R.drawable.ph_fork_knife)
     Category.BARY -> CatStyle(Color(0xFFF3E9E1), Color(0xFF7B4A2A), R.drawable.ph_coffee)
     Category.DARCEKY -> CatStyle(Color(0xFFFCE6EC), Color(0xFFC0354F), R.drawable.ph_gift)
+    Category.CESTOVANIE -> CatStyle(Color(0xFFE2EEF8), Color(0xFF2565A6), R.drawable.ph_airplane)
     Category.UBYTOVANIE -> CatStyle(Color(0xFFE8EAF6), Color(0xFF3F4A9A), R.drawable.ph_bed)
     Category.VOLNY_CAS -> CatStyle(Color(0xFFE0F2EE), Color(0xFF1F6F5F), R.drawable.ph_flower_lotus)
     Category.OBLECENIE -> CatStyle(Color(0xFFF6E8F0), Color(0xFF8A3F6B), R.drawable.ph_t_shirt)
@@ -389,6 +396,7 @@ fun merchantStyle(t: MerchantType): MerchantStyle = when (t) {
     MerchantType.RESTAURANT -> MerchantStyle(Color(0xFFFBEADF), Color(0xFFB4531F), R.drawable.ph_fork_knife)
     MerchantType.CAFE_BAR -> MerchantStyle(Color(0xFFF3E9E1), Color(0xFF7B4A2A), R.drawable.ph_coffee)
     MerchantType.GIFTS -> MerchantStyle(Color(0xFFFCE6EC), Color(0xFFC0354F), R.drawable.ph_gift)
+    MerchantType.TRAVEL -> MerchantStyle(Color(0xFFE2EEF8), Color(0xFF2565A6), R.drawable.ph_airplane)
     MerchantType.HOTEL -> MerchantStyle(Color(0xFFE8EAF6), Color(0xFF3F4A9A), R.drawable.ph_bed)
     MerchantType.WELLNESS -> MerchantStyle(Color(0xFFE0F2EE), Color(0xFF1F6F5F), R.drawable.ph_flower_lotus)
     MerchantType.PHARMACY -> MerchantStyle(Color(0xFFE3F3F1), Color(0xFF1D7268), R.drawable.ph_first_aid_kit)
@@ -493,16 +501,21 @@ fun ScreenBox(contentPadding: PaddingValues, content: @Composable BoxScope.() ->
 @Composable
 fun SectionTitle(text: String) = SectionHeader(text)
 
-/** Skupiny kategórií vo výbere – každá kategória je práve v jednej skupine. */
+/**
+ * Skupiny kategórií (výber kategórie aj rozpočty) – každá kategória je práve v jednej skupine,
+ * v skupine zoradené podľa abecedy v jazyku aplikácie.
+ */
 val CATEGORY_GROUPS: List<Pair<String, List<Category>>> get() = listOf(
-    "Potraviny a nápoje" to listOf(Category.MASO, Category.LAHODKY, Category.MLIECNE, Category.PECIVO, Category.OVOCIE_ZELENINA,
-        Category.TRVANLIVE, Category.MRAZENE_HOTOVE, Category.NAPOJE, Category.SLADKOSTI, Category.ALKOHOL, Category.TABAK),
+    "Potraviny" to listOf(Category.MASO, Category.LAHODKY, Category.MLIECNE, Category.PECIVO, Category.OVOCIE_ZELENINA,
+        Category.TRVANLIVE, Category.MRAZENE_HOTOVE, Category.NAPOJE, Category.SLADKOSTI),
+    "Alkohol a tabak" to listOf(Category.ALKOHOL, Category.TABAK),
     "Domácnosť a zdravie" to listOf(Category.DROGERIA, Category.DOMACNOST, Category.ZDRAVIE, Category.ZVIERATA),
-    "Mimo domu" to listOf(Category.RESTAURACIE, Category.BARY, Category.UBYTOVANIE, Category.VOLNY_CAS),
-    "Ostatné" to listOf(Category.DARCEKY, Category.OBLECENIE, Category.ELEKTRONIKA, Category.SLUZBY, Category.PHM, Category.AUTO_MOTO,
-        Category.ZALOHY, Category.ZLAVY, Category.INE),
+    "Jedlo a zábava mimo domu" to listOf(Category.RESTAURACIE, Category.BARY, Category.VOLNY_CAS),
+    "Doprava a cestovanie" to listOf(Category.AUTO_MOTO, Category.CESTOVANIE, Category.PHM, Category.UBYTOVANIE),
+    "Nákupy a služby" to listOf(Category.DARCEKY, Category.ELEKTRONIKA, Category.OBLECENIE, Category.SLUZBY),
+    "Ostatné" to listOf(Category.INE, Category.ZALOHY, Category.ZLAVY),
     "Vlastné" to CustomCategories.all.map { it.slot }
-)
+).map { (t, c) -> t to c.sortedByLabel() }
 
 /** Výber kategórie pre položku – na celú obrazovku, všetky kategórie viditeľné a posúvateľné. */
 @Composable

@@ -51,7 +51,7 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
         /** pri exponenciálnom odstupe WorkManagera ≈ niekoľko dní pokusov */
         const val MAX_ATTEMPTS = 25
         /** zvýšiť, keď sa zmení logika kategorizácie → existujúce bločky sa preradia */
-        const val CATEGORIZER_VERSION = 6
+        const val CATEGORIZER_VERSION = 7
     }
 
     private val dao = AppDatabase.get(context).dao()
@@ -611,9 +611,21 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
     suspend fun deleteEverything() = withContext(Dispatchers.IO) {
         sync.leave()   // odíde z domácnosti; údaje ostatných členov na serveri ostanú
         dao.clearAll()
+        // jazyk a farebná téma sú nastavenia zariadenia, nie osobné údaje – ostanú
         val keepVersion = prefs.getInt("catVersion", 0)
-        prefs.edit().clear().putInt("catVersion", keepVersion).apply()
+        val keepLang = prefs.getBoolean("lang_en", false)
+        val keepTheme = prefs.getString("theme", null)
+        val ed = prefs.edit().clear().putInt("catVersion", keepVersion).putBoolean("lang_en", keepLang)
+        if (keepTheme != null) ed.putString("theme", keepTheme)
+        ed.apply()
         Period.payDay = 1
+        FixedExpenses.set(emptyList())
+        CustomCategories.load(null)
+        customCatsVersion.value++
+        // automatická záloha sa vypne a uložené heslo záloh sa zmaže (súbory záloh mimo aplikácie ostanú)
+        Backup.disableAuto(context)
+        context.getSharedPreferences("backup", Context.MODE_PRIVATE).edit().clear().apply()
+        listOf("restore.db", "restore.db.tmp", "restore-prefs.json").forEach { File(context.filesDir, it).delete() }
         File(context.cacheDir, "exports").deleteRecursively()
         File(context.cacheDir, "updates").deleteRecursively()
     }

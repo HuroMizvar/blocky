@@ -33,6 +33,9 @@ class MerchantTest {
         assertEquals(MerchantType.CAFE_BAR, MerchantResolver.resolve("Kaviareň Dobre&Dobré"))
         assertEquals(MerchantType.CAFE_BAR, MerchantResolver.resolve("Irish Pub Dublin s.r.o."))
         assertEquals(MerchantType.GIFTS, MerchantResolver.resolve("Kvetinárstvo Ruža"))
+        assertEquals(MerchantType.TRAVEL, MerchantResolver.resolve("Železničná spoločnosť Slovensko, a.s. (ZSSK)"))
+        assertEquals(MerchantType.TRAVEL, MerchantResolver.resolve("RegioJet a.s."))
+        assertEquals(MerchantType.SERVICES, MerchantResolver.resolve("Taxi Trnava"))
         assertEquals(MerchantType.SERVICES, MerchantResolver.resolve("Barber shop Peter"))
     }
 

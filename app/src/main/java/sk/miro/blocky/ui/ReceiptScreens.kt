@@ -244,7 +244,8 @@ private fun ReceiptRow(row: ReceiptListRow, hits: List<sk.miro.blocky.data.ItemR
         }
         Spacer(Modifier.width(8.dp))
         Column(horizontalAlignment = Alignment.End) {
-            Text(eur(row.counted), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+            if (row.counted < 0) Text("+" + eur(-row.counted), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Pal.Green)
+            else Text(eur(row.counted), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
             if (row.counted != r.totalCents) Text(eur(r.totalCents), fontSize = 11.sp, color = Pal.Muted,
                 textDecoration = TextDecoration.LineThrough)
         }
@@ -528,18 +529,33 @@ fun BudgetsScreen(vm: MainViewModel, contentPadding: PaddingValues, actions: @Co
                 Modifier.padding(bottom = 12.dp), fontSize = 13.sp, color = Pal.Muted)
         }
         item {
-            BCard(padding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
-                Category.visible.filter { it != Category.ZLAVY && it != Category.ZALOHY }.forEach { c ->
-                    key(c, cats) { BudgetRow(c, st.budgets[c], spent[c] ?: 0L, states[c]) { vm.setBudget(c, it) } }
-                }
-            }
+            // skupiny kategórií, v skupine podľa abecedy; zálohy a zľavy nemajú rozpočet
+            key(cats, sk.miro.blocky.domain.I18n.english) { Column {
+                CATEGORY_GROUPS.map { (t, l) -> t to l.filter { it.active && it != Category.ZLAVY && it != Category.ZALOHY } }
+                    .filter { it.second.isNotEmpty() }.forEach { (title, list) ->
+                        val gBudget = list.sumOf { st.budgets[it] ?: 0L }
+                        val gSpent = list.sumOf { spent[it] ?: 0L }
+                        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 14.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.Bottom) {
+                            Text(title, Modifier.weight(1f), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(if (gBudget > 0) "${eur(gSpent)} z ${eur(gBudget)}" else "minuté ${eur(gSpent)}",
+                                fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                color = if (gBudget > 0 && gSpent > gBudget) Pal.Red else Pal.Muted)
+                        }
+                        BCard(padding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
+                            list.forEach { c ->
+                                key(c) { BudgetRow(c, st.budgets[c], spent[c] ?: 0L, states[c]) { vm.setBudget(c, it) } }
+                            }
+                        }
+                    }
+            } }
         }
         item {
             Spacer(Modifier.height(20.dp))
             SectionTitle("Vlastné kategórie")
             BCard(padding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
                 val defs = CustomCategories.all
-                if (defs.isEmpty()) Text("Zatiaľ žiadne. Vytvorte si napr. „Deti“, „Darčeky“ alebo „Chata“.",
+                if (defs.isEmpty()) Text("Zatiaľ žiadne. Vytvorte si napr. „Deti“, „Chata“ alebo „Hobby“.",
                     Modifier.padding(vertical = 10.dp), fontSize = 13.sp, color = Pal.Muted)
                 defs.forEach { d ->
                     Row(Modifier.fillMaxWidth().clickable { editCustom = d }.padding(vertical = 8.dp),
@@ -726,13 +742,16 @@ private fun BudgetRow(c: Category, budget: Long?, spent: Long, state: sk.miro.bl
     }
 }
 
-/** Ručné zadanie výdavku bez QR (napr. trh, bloček bez eKasa). */
+/** Ručné zadanie výdavku alebo príjmu bez QR (napr. trh, bloček bez eKasa, vrátené peniaze). */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManualEntryDialog(onDismiss: () -> Unit, title: String = "Ručný záznam", initialMerchant: String = "",
                       initialCents: Long? = null, initialCategory: Category = Category.INE,
                       onSave: (String, Long, Category) -> Unit) {
     var merchant by remember { mutableStateOf(initialMerchant) }
-    var amount by remember { mutableStateOf(initialCents?.let { "%d,%02d".format(it / 100, it % 100) } ?: "") }
+    // príjem sa ukladá ako záporná suma – zníži minuté a zvýši zostatok rozpočtu
+    var income by remember { mutableStateOf((initialCents ?: 0L) < 0) }
+    var amount by remember { mutableStateOf(initialCents?.let { kotlin.math.abs(it) }?.let { "%d,%02d".format(it / 100, it % 100) } ?: "") }
     var cat by remember { mutableStateOf(initialCategory) }
     var expanded by remember { mutableStateOf(false) }
     val cents = amount.replace(',', '.').toDoubleOrNull()?.let { Math.round(it * 100) }
@@ -742,6 +761,13 @@ fun ManualEntryDialog(onDismiss: () -> Unit, title: String = "Ručný záznam", 
         title = { Text(title, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = !income, onClick = { income = false }, label = { Text("Výdaj") })
+                    FilterChip(selected = income, onClick = { income = true }, label = { Text("Príjem") },
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Pal.GreenSoft))
+                }
+                if (income) Text("Príjem (napr. vrátené peniaze) zníži minuté vo vybranej kategórii a zvýši zostatok rozpočtu.",
+                    fontSize = 12.sp, color = Pal.Muted)
                 OutlinedTextField(merchant, { merchant = it }, label = { Text("Obchod / popis") }, singleLine = true,
                     shape = RoundedCornerShape(14.dp))
                 OutlinedTextField(amount, { amount = it }, label = { Text("Suma €") }, singleLine = true,
@@ -751,7 +777,7 @@ fun ManualEntryDialog(onDismiss: () -> Unit, title: String = "Ručný záznam", 
                         CatBadge(cat, 24); Spacer(Modifier.width(8.dp)); Text(cat.label)
                     }
                     DropdownMenu(expanded, { expanded = false }) {
-                        Category.visible.forEach { c ->
+                        Category.visible.sortedByLabel().forEach { c ->
                             DropdownMenuItem(text = { Text(c.label) }, leadingIcon = { CatBadge(c, 24) },
                                 onClick = { cat = c; expanded = false })
                         }
@@ -760,7 +786,9 @@ fun ManualEntryDialog(onDismiss: () -> Unit, title: String = "Ručný záznam", 
             }
         },
         confirmButton = {
-            TextButton(enabled = cents != null && cents > 0, onClick = { onSave(merchant, cents!!, cat) }) { Text("Uložiť") }
+            TextButton(enabled = cents != null && cents > 0, onClick = {
+                onSave(merchant.ifBlank { if (income) "Príjem" else "" }, if (income) -cents!! else cents!!, cat)
+            }) { Text("Uložiť") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Zrušiť") } }
     )

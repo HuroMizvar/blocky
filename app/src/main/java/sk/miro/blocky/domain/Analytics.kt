@@ -81,7 +81,12 @@ data class MonthReport(
     val foodCents: Long = 0,
     /** fixné výdavky (hypotéka, úver…) zaplatené v období – NIE sú v totalCents */
     val fixedCents: Long = 0,
-    val fixedPayments: List<FixedPayment> = emptyList()
+    val fixedPayments: List<FixedPayment> = emptyList(),
+    /**
+     * minulý mesiac na porovnanie: v bežiacom mesiaci len po rovnaký deň obdobia (1.–N. deň),
+     * inak celý mesiac; null = minulý mesiac má príliš málo údajov na zmysluplné porovnanie
+     */
+    val compareCents: Long? = null
 ) {
     /** minuté spolu aj s fixnými výdavkami */
     val totalWithFixedCents: Long get() = totalCents + fixedCents
@@ -173,9 +178,15 @@ object Analytics {
         // fixné výdavky sú vždy posledné – zaujímavejšie sú bežné výdavky
         val withFixed = if (fixedCents > 0) categoriesP.filter { it.category != Category.FIXNE } +
             CategoryStat(Category.FIXNE, fixedCents, 0.0, 0, null, null) else categoriesP
+        val prevMonth = month.minusMonths(1)
+        val prevToDate = if (month == Period.of(today))
+            prev.filter { Period.dayIndex(prevMonth, dateOf(it.issuedAt)) <= dayIdx }.sumOf { it.priceCents }
+            else prev.sumOf { it.priceCents }
+        // porovnanie len ak minulý mesiac má aspoň 5 bločkov a 20 € – inak by vyšli nezmysly ako +13 000 %
+        val compare = prevToDate.takeIf { prev.map { it.receiptDbId }.distinct().size >= 5 && it >= 2_000 }
         return MonthReport(month, total, prev.sumOf { it.priceCents }, avg3Total,
             allCur.map { it.receiptDbId }.distinct().size, withFixed, merchants, topItems, projected,
-            depositPaid, depositReturned, food, fixedCents, fixedPay)
+            depositPaid, depositReturned, food, fixedCents, fixedPay, compare)
     }
 
     fun recommendations(
