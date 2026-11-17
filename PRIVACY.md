@@ -1,6 +1,6 @@
 # Zásady ochrany osobných údajov – aplikácia Bločky
 
-*Platné od 5. 11. 2026*
+*Platné od 17. 11. 2026*
 
 Bločky je aplikácia na skenovanie pokladničných bločkov eKasa a prehľad osobných výdavkov.
 Aplikácia je navrhnutá tak, aby vaše údaje zostali súkromné. Nie je aplikáciou Finančnej správy SR ani iného štátneho orgánu a nekoná v ich mene. Položky bločkov pochádzajú zo služby eKasa – Over doklad Finančnej správy SR: https://opd.financnasprava.sk/
@@ -21,6 +21,8 @@ Zálohovanie do cloudu Android je pre aplikáciu vypnuté.
 
 1. **Načítanie bločku z eKasa** – po naskenovaní QR kódu sa identifikátor dokladu odošle do verejnej služby
    Finančnej správy SR (ekasa.financnasprava.sk), ktorá vráti položky bločku. Iné údaje sa neposielajú.
+   Rovnako pri otvorení *Elektronického bločku*, ak v telefóne chýbajú úplné údaje dokladu (napr. bloček od člena domácnosti).
+   Elektronický bloček (PDF) vzniká v telefóne a odíde len tam, kam ho sami uložíte alebo pošlete.
 2. **Spoločná domácnosť (voliteľné)** – ak ju zapnete, bločky a nastavenia sa synchronizujú medzi zariadeniami
    členov domácnosti cez službu Google Firebase (Cloud Firestore, umiestnenie EÚ).
    - Údaje sa **šifrujú priamo v telefóne** (AES-256-GCM). Server dostane len zašifrovaný text,

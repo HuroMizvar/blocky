@@ -303,6 +303,22 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
     val budgets = dao.budgets()
     fun receipt(id: Long) = dao.receiptWithItems(id)
 
+    /**
+     * Elektronická kópia bločku. Ak chýba pôvodná odpoveď eKasa (bloček od člena domácnosti, starší záznam),
+     * raz ju načíta z eKasa podľa ID dokladu a uloží; bez pripojenia zloží kópiu z uložených položiek.
+     */
+    suspend fun receiptCopy(id: Long): sk.miro.blocky.domain.ReceiptCopy? {
+        val rw = dao.receiptWithItemsOnce(id) ?: return null
+        var r = rw.receipt
+        if (r.rawJson.isNullOrBlank() && r.source == "EKASA" && r.receiptId.startsWith("O-") && !mockMode) {
+            runCatching { EkasaClient(endpoint).fetch(EkasaQr.Online(r.receiptId)) }.getOrNull()?.let { p ->
+                dao.setRawJson(id, p.rawJson)
+                r = r.copy(rawJson = p.rawJson)
+            }
+        }
+        return ReceiptCopies.build(r, rw.items)
+    }
+
     suspend fun scan(rawQr: String): ScanResult {
         if (mockMode) return save(DemoData.mockReceipt(rawQr), DemoData.SOURCE)
         val qr = EkasaQr.parse(rawQr)

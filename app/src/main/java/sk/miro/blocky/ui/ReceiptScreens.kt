@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.automirrored.filled.Undo
@@ -271,6 +272,8 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
     var pickingFor by remember { mutableStateOf<ItemEntity?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
     var changeType by remember { mutableStateOf(false) }
+    var showCopy by remember { mutableStateOf(false) }
+    if (showCopy) ReceiptCopyDialog(vm, id) { showCopy = false }
 
     Scaffold(containerColor = Pal.Bg) { pad ->
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp,
@@ -330,6 +333,15 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
                     Spacer(Modifier.height(2.dp))
                     Text("${d.items.size} ${itemWord(d.items.size)} · ťuknutím na položku zmeníte kategóriu alebo počet kusov, " +
                         "ikonou vpravo ju prečiarknete", fontSize = 12.sp, color = Pal.Muted, lineHeight = 16.sp)
+                }
+            }
+            item {
+                // elektronická kópia bločku – na ukázanie v predajni (reklamácia, výmena)
+                OutlinedButton(onClick = { showCopy = true }, Modifier.fillMaxWidth().padding(top = 12.dp),
+                    shape = RoundedCornerShape(14.dp)) {
+                    Icon(Icons.Default.Receipt, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (d.receipt.source == "MANUAL") "Zobraziť záznam ako bloček" else "Elektronický bloček")
                 }
             }
             item { Spacer(Modifier.height(12.dp)) }

@@ -58,4 +58,9 @@ T.update({
  'Sieť sa používa len na: (1) načítanie položiek bločku z eKasa Finančnej správy SR podľa ID dokladu, (2) synchronizáciu domácnosti, ak ju zapnete.':'The network is used only for: (1) loading receipt items from the Slovak Financial Administration eKasa by receipt ID, (2) household sync, if you turn it on.',
  '{} % vs. min. mes. k dnešku':'{} % vs. last month to date','{} % vs. min. mes.':'{} % vs. last month',
  'Rozpočty kategórií {}':'Category budgets {}','minuté v nich {} · ostatné kategórie rozpočet nemajú':'spent in them {} · other categories have no budget',
+ 'Elektronický bloček':'Electronic receipt','Zobraziť záznam ako bloček':'Show entry as receipt',
+ 'Načítavam bloček…':'Loading receipt…','Bloček sa nenašiel.':'Receipt not found.',
+ 'Úplné údaje z eKasa sa nepodarilo načítať (bez pripojenia?). Kópia je zostavená z uložených položiek – skúste ju otvoriť znova s internetom.':'Full eKasa data could not be loaded (offline?). The copy is built from saved items – try opening it again with internet.',
+ 'Stiahnuť PDF':'Download PDF','Zdieľať':'Share','Zdieľať bloček':'Share receipt','Uložené do Stiahnuté → Bločky':'Saved to Downloads → Bločky',
+ 'Bloček uložený':'Receipt saved','Bloček sa nepodarilo uložiť':'Receipt could not be saved','Zavrieť':'Close',
 })

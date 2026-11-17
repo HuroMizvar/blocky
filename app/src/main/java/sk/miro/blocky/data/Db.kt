@@ -202,6 +202,10 @@ abstract class BlockyDao {
     @Query("SELECT * FROM receipts WHERE merchantKey = :key")
     abstract suspend fun receiptsWithItemsByMerchant(key: String): List<ReceiptWithItems>
 
+    /** doplní pôvodnú odpoveď eKasa (pre elektronickú kópiu bločku) – nesynchronizuje sa */
+    @Query("UPDATE receipts SET rawJson = :raw WHERE id = :id")
+    abstract suspend fun setRawJson(id: Long, raw: String)
+
     @Query("UPDATE receipts SET merchantKey = :key, merchantType = :type WHERE id = :id")
     abstract suspend fun setReceiptMerchant(id: Long, key: String?, type: String?)
 
