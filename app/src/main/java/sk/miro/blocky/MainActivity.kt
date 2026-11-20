@@ -92,6 +92,7 @@ class MainActivity : ComponentActivity() {
                 )
 
                 HouseholdDialogs(vm)
+                TestDataDialogs(vm)
 
                 // report do Excelu (Prehľad, Bločky, Nastavenia → Súkromie)
                 var showReport by remember { mutableStateOf(false) }

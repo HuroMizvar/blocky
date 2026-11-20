@@ -44,6 +44,8 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
         /** fixné výdavky: id → JSON */
         fun fixedJsons(): Map<String, String>
         fun applyFixed(id: String, json: String?)
+        /** rozpočty nastavené testovacími bločkami – do domácnosti sa neposielajú */
+        fun demoBudgetCategories(): Set<String> = emptySet()
     }
 
     companion object {
@@ -177,7 +179,8 @@ class HouseholdSync(private val context: Context, private val dao: BlockyDao, pr
         dao.rules().forEach { q("rule", it.normName, it.category) }
         dao.aiExamples().forEach { q("aiex", it.normName, it.category) }
         dao.userMerchants().forEach { q("merchant", it.mkey, JSONObject().put("name", it.name).put("type", it.type).toString()) }
-        dao.budgetList().forEach { q("budget", it.category, it.monthlyCents.toString()) }
+        val demo = hooks.demoBudgetCategories()
+        dao.budgetList().filter { it.category !in demo }.forEach { q("budget", it.category, it.monthlyCents.toString()) }
         q("profile", "household", hooks.profileJson())
         hooks.customCategoryJsons().forEach { (slot, json) -> q("customcat", slot, json) }
         hooks.fixedJsons().forEach { (id, json) -> q("fixed", id, json) }

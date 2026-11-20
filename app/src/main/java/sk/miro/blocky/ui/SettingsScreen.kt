@@ -671,6 +671,7 @@ private fun AppSettingsSection(vm: MainViewModel) {
     Text("Platí len pre toto zariadenie.", fontSize = 12.sp, color = Pal.Muted, modifier = Modifier.padding(top = 8.dp))
     HorizontalDivider(Modifier.padding(top = 20.dp))
     AiSection(vm)
+    TestDataSection(vm)
 }
 
 /** Náhľad farebnej témy na výber. */

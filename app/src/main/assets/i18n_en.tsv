@@ -142,7 +142,7 @@ Bločky	Receipts
 Zatiaľ žiadne bločky	No receipts yet
 Naskenujte prvý bloček zeleným tlačidlom Skenuj dole.	Scan your first receipt with the green Scan button below.
 Hľadať obchod alebo položku…	Search shop or item…
-Vymazať	Clear
+Vymazať	Delete
 Nič sa nenašlo.	Nothing found.
 Nájdené: {} {} · spolu {}	Found: {} {} · total {}
 Položky „{}“: {}× · spolu {}	Items “{}”: {}× · total {}
@@ -668,3 +668,32 @@ Počet položiek	Items
 Suma	Amount
 Položky	Items
 Uložené medzi stiahnuté súbory	Saved to Downloads
+Ďakujeme, že ste si nainštalovali aplikáciu Bločky	Thank you for installing Bločky
+Aby ste si mohli pozrieť, ako aplikácia funguje a ako zobrazuje nákupy, pripravili sme pre vás sadu fiktívnych testovacích bločkov.	So you can see how the app works and how it shows purchases, we have prepared a set of fictional test receipts for you.
+Testovacie bločky môžete potom v nastaveniach vymazať z aplikácie.	You can delete the test receipts from the app later in Settings.
+Chcem vyskúšať	Try it
+Nechcem vyskúšať	No, thanks
+Vymazať testovacie bločky natrvalo?	Delete test receipts permanently?
+Áno – testovacie bločky sa nenahrajú a ponuka zmizne aj z Nastavení.	Yes – test receipts will not be loaded and the option disappears from Settings too.
+Nie – testovacie bločky si môžete kedykoľvek zapnúť alebo vymazať v Nastaveniach → Nastavenie aplikácie.	No – you can turn test receipts on or delete them any time in Settings → App settings.
+Áno, vymazať	Yes, delete
+Nie	No
+Naskenovali ste prvý vlastný bloček	You scanned your first own receipt
+Chcete teraz vymazať testovacie bločky, aby sa fiktívne nákupy nemiešali s vašimi skutočnými výdavkami?	Delete the test receipts now so fictional purchases do not mix with your real spending?
+Vymaže sa len testovacia sada. Váš bloček ostane.	Only the test set is deleted. Your receipt stays.
+Vymazať testovacie	Delete test receipts
+Ponechať zatiaľ	Keep for now
+Testovacie bločky · fiktívne nákupy na vyskúšanie	Test receipts · fictional purchases to try the app
+Úplne odstrániť testovacie bločky?	Remove test receipts completely?
+Vymazať testovacie bločky?	Delete test receipts?
+Testovacie bločky sa vymažú a ponuka zmizne aj z Nastavení. Vymažú sa testovacie bločky, ukážkové rozpočty a ukážkové fixné výdavky. Vaše vlastné bločky ostanú.	Test receipts will be deleted and the option disappears from Settings. Test receipts, sample budgets and sample fixed expenses are deleted. Your own receipts stay.
+Vymažú sa testovacie bločky, ukážkové rozpočty a ukážkové fixné výdavky. Vaše vlastné bločky ostanú.	Test receipts, sample budgets and sample fixed expenses are deleted. Your own receipts stay.
+Testovacie bločky	Test receipts
+Zapnuté · {} bloček	On · {} receipt
+Zapnuté · {} bločky	On · {} receipts
+Zapnuté · {} bločkov	On · {} receipts
+Vymažú sa len testovacie bločky (a ich ukážkové rozpočty a fixné výdavky). Vaše vlastné bločky ostanú.	Only test receipts are deleted (with their sample budgets and fixed expenses). Your own receipts stay.
+Vymazať testovacie bločky	Delete test receipts
+Sada fiktívnych nákupov za posledné 3 mesiace – vyskúšate si Prehľad, Rozpočty, Tipy aj report bez vlastných bločkov.	A set of fictional purchases for the last 3 months – try Overview, Budgets, Tips and the report without your own receipts.
+Zapnúť testovacie bločky	Turn on test receipts
+Úplne odstrániť testovacie bločky z aplikácie a nastavení	Remove test receipts completely from the app and settings

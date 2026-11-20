@@ -59,9 +59,21 @@ object Backup {
         val db = AppDatabase.get(context)
         // dopísať WAL do hlavného súboru, aby bol súbor databázy úplný
         db.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").use { it.moveToFirst() }
-        val dbBytes = context.getDatabasePath(DB_NAME).readBytes()
+        val dbBytes = withoutTestData(context, context.getDatabasePath(DB_NAME).readBytes())
         val prefs = JSONObject()
-        for (name in PREF_FILES) prefs.put(name, prefsToJson(context.getSharedPreferences(name, Context.MODE_PRIVATE).all))
+        for (name in PREF_FILES) {
+            val all = context.getSharedPreferences(name, Context.MODE_PRIVATE).all.toMutableMap()
+            if (name == "settings") {
+                // testovacie bločky sa nezálohujú: ani ich rozpočty a fixné výdavky
+                (all["demoBudgets"] as? Set<*>)?.let { all.remove("demoBudgets") }
+                (all["fixed"] as? String)?.let { j ->
+                    all["fixed"] = sk.miro.blocky.domain.FixedExpenses.listToJson(
+                        sk.miro.blocky.domain.FixedExpenses.listFromJson(j).filter { !it.id.startsWith(DemoData.FIXED_PREFIX) })
+                }
+                if (all["demoState"] == "on") all["demoState"] = "off"
+            }
+            prefs.put(name, prefsToJson(all))
+        }
         val payload = JSONObject()
             .put("v", 1)
             .put("createdAt", System.currentTimeMillis())
@@ -69,6 +81,28 @@ object Backup {
             .put("db", Base64.getEncoder().encodeToString(dbBytes))
             .put("prefs", prefs)
         encrypt(gzip(payload.toString().toByteArray(Charsets.UTF_8)), password)
+    }
+
+    /** Kópia databázy bez testovacích bločkov a ich ukážkových rozpočtov. */
+    private fun withoutTestData(context: Context, dbBytes: ByteArray): ByteArray {
+        val demoBudgets = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+            .getStringSet("demoBudgets", emptySet()) ?: emptySet()
+        val tmp = File(context.cacheDir, "backup-copy.db")
+        return try {
+            tmp.writeBytes(dbBytes)
+            val db = android.database.sqlite.SQLiteDatabase.openDatabase(tmp.path, null,
+                android.database.sqlite.SQLiteDatabase.OPEN_READWRITE)
+            try {
+                db.execSQL("DELETE FROM items WHERE receiptDbId IN (SELECT id FROM receipts WHERE source = ?)", arrayOf(DemoData.SOURCE))
+                db.execSQL("DELETE FROM receipts WHERE source = ?", arrayOf(DemoData.SOURCE))
+                demoBudgets.forEach { db.execSQL("DELETE FROM budgets WHERE category = ?", arrayOf(it)) }
+            } finally { db.close() }
+            tmp.readBytes()
+        } catch (e: Exception) {
+            dbBytes   // radšej záloha aj s testovacími než žiadna
+        } finally {
+            listOf("", "-journal", "-wal", "-shm").forEach { File(tmp.path + it).delete() }
+        }
     }
 
     // ---------- čítanie ----------

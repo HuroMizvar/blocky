@@ -225,9 +225,12 @@ private fun ReceiptRow(row: ReceiptListRow, hits: List<sk.miro.blocky.data.ItemR
         Column(Modifier.weight(1f)) {
             Text(shortMerchant(r.merchantName), fontSize = 15.sp, fontWeight = FontWeight.Bold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(fmtDay(r.issuedAt) + (if (row.itemCount > 0) " · ${row.itemCount} ${itemWord(row.itemCount)}" else "") +
-                    when (r.source) { "MANUAL" -> " · ručne"; "DEMO" -> " · demo"; else -> "" },
-                fontSize = 12.sp, color = Pal.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(fmtDay(r.issuedAt) + (if (row.itemCount > 0) " · ${row.itemCount} ${itemWord(row.itemCount)}" else "") +
+                        (if (r.source == "MANUAL") " · ručne" else ""),
+                    Modifier.weight(1f, fill = false), fontSize = 12.sp, color = Pal.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (r.source == "DEMO") { Spacer(Modifier.width(6.dp)); TestBadge() }
+            }
             r.addedBy?.let { who ->
                 Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                     MemberDot(who, 14)
@@ -336,8 +339,8 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
                         "ikonou vpravo ju prečiarknete", fontSize = 12.sp, color = Pal.Muted, lineHeight = 16.sp)
                 }
             }
-            item {
-                // elektronická kópia bločku – na ukázanie v predajni (reklamácia, výmena)
+            if (d.receipt.source != "DEMO") item {
+                // elektronická kópia bločku – na ukázanie v predajni (reklamácia, výmena); testovacie bločky ju nemajú
                 OutlinedButton(onClick = { showCopy = true }, Modifier.fillMaxWidth().padding(top = 12.dp),
                     shape = RoundedCornerShape(14.dp)) {
                     Icon(Icons.Default.Receipt, null, modifier = Modifier.size(18.dp))

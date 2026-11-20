@@ -56,6 +56,7 @@ fun ReportScreen(
     }
     LazyColumn(Modifier.fillMaxSize().background(Pal.Bg), contentPadding = listPadding(contentPadding)) {
         item { MonthSwitcher(st.month, st.months, vm::selectMonth, actions) }
+        item { TestDataBanner(vm) }
         if (unknown.isNotEmpty()) item {
             BCard(Modifier.padding(top = 12.dp), color = Pal.AmberSoft, padding = PaddingValues(16.dp)) {
                 Text("Pomôžte zaradiť ${unknown.size} ${if (unknown.size == 1) "prevádzku" else if (unknown.size < 5) "prevádzky" else "prevádzok"}",

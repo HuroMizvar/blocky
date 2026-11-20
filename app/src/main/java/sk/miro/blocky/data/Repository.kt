@@ -95,15 +95,18 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
     suspend fun saveFixed(e: FixedExpense) {
         val v = e.copy(at = System.currentTimeMillis())
         persistFixed(FixedExpenses.list.value.filter { it.id != v.id } + v)
-        if (sync.enabled) { sync.queue("fixed", v.id, FixedExpenses.toJson(v)); sync.schedule() }
+        if (sync.enabled && !v.id.startsWith(DemoData.FIXED_PREFIX)) { sync.queue("fixed", v.id, FixedExpenses.toJson(v)); sync.schedule() }
     }
 
     suspend fun deleteFixed(id: String) {
         persistFixed(FixedExpenses.list.value.filter { it.id != id })
-        if (sync.enabled) { sync.queue("fixed", id, null); sync.schedule() }
+        if (sync.enabled && !id.startsWith(DemoData.FIXED_PREFIX)) { sync.queue("fixed", id, null); sync.schedule() }
     }
 
-    override fun fixedJsons(): Map<String, String> = FixedExpenses.list.value.associate { it.id to FixedExpenses.toJson(it) }
+    override fun fixedJsons(): Map<String, String> = FixedExpenses.list.value
+        .filter { !it.id.startsWith(DemoData.FIXED_PREFIX) }.associate { it.id to FixedExpenses.toJson(it) }
+
+    override fun demoBudgetCategories(): Set<String> = prefs.getStringSet("demoBudgets", emptySet()) ?: emptySet()
 
     override fun applyFixed(id: String, json: String?) {
         val cur = FixedExpenses.list.value
@@ -278,6 +281,9 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
             .also { Period.payDay = v.payDay }
 
     val demoCount = dao.countBySource(DemoData.SOURCE)
+    /** počet vlastných (nie testovacích) bločkov */
+    val ownCount = dao.countExceptSource(DemoData.SOURCE)
+    suspend fun receiptCountOnce() = dao.receiptCountOnce()
     val unknownMerchants = dao.unknownMerchants()
     fun observeReceipt(id: Long) = dao.observeReceipt(id)
     val receipts = dao.receipts()
@@ -547,6 +553,44 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
         if (sync.enabled && r?.syncId != null) { dao.addTombstone(SyncTombstoneEntity(r.syncId)); sync.schedule() }
     }
 
+    /**
+     * Testovacie bločky pre nového používateľa: stav ponuky
+     * null = ešte neponúknuté, "on" = nahraté, "off" = vypnuté (dá sa zapnúť v Nastaveniach),
+     * "removed" = úplne odstránené aj z Nastavení.
+     */
+    var demoState: String?
+        get() = prefs.getString("demoState", null)
+        set(v) = prefs.edit().putString("demoState", v).apply()
+
+    /** už sa pýtalo na vymazanie testovacích po prvom vlastnom bločku */
+    var demoAskedAfterReal: Boolean
+        get() = prefs.getBoolean("demoAskedReal", false)
+        set(v) = prefs.edit().putBoolean("demoAskedReal", v).apply()
+
+    /** Nahrá testovacie bločky + ukážkové rozpočty (len kde rozpočet chýba) a 2 ukážkové fixné výdavky. */
+    suspend fun loadTestData(): Int {
+        // kto už má vlastné bločky, toho sa po ďalšom skenovaní nepýtame na vymazanie testovacích
+        demoAskedAfterReal = dao.receiptCountOnce() > 0
+        val n = seedDemo()
+        val have = dao.budgetList().map { it.category }.toSet()
+        val added = DemoData.budgets.filterKeys { it.name !in have }
+        added.forEach { (c, cents) -> dao.upsertBudget(BudgetEntity(c.name, cents)) }   // bez synchronizácie
+        prefs.edit().putStringSet("demoBudgets", demoBudgetCategories() + added.keys.map { it.name }).apply()
+        val ids = FixedExpenses.list.value.map { it.id }.toSet()
+        persistFixed(FixedExpenses.list.value + DemoData.fixed().filter { it.id !in ids })
+        demoState = "on"
+        return n
+    }
+
+    /** Zmaže testovacie bločky, ukážkové rozpočty a fixné výdavky. [forever] = ponuka zmizne aj z Nastavení. */
+    suspend fun removeTestData(forever: Boolean) {
+        dao.deleteBySource(DemoData.SOURCE)
+        demoBudgetCategories().forEach { dao.deleteBudget(it) }
+        prefs.edit().remove("demoBudgets").apply()
+        persistFixed(FixedExpenses.list.value.filter { !it.id.startsWith(DemoData.FIXED_PREFIX) })
+        demoState = if (forever) "removed" else "off"
+    }
+
     /** Nahradí demo bločky novou sadou (3 mesiace + aktuálny). Vráti počet bločkov. */
     suspend fun seedDemo(): Int {
         dao.deleteBySource(DemoData.SOURCE)
@@ -647,6 +691,8 @@ class Repository(private val context: Context) : HouseholdSync.Hooks {
     }
 
     suspend fun setBudget(c: Category, cents: Long?) {
+        // rozpočet upravený používateľom už nie je ukážkový
+        demoBudgetCategories().takeIf { c.name in it }?.let { prefs.edit().putStringSet("demoBudgets", it - c.name).apply() }
         if (cents == null || cents <= 0) dao.deleteBudget(c.name) else dao.upsertBudget(BudgetEntity(c.name, cents))
         if (sync.enabled) { sync.queue("budget", c.name, cents?.takeIf { it > 0 }?.toString()); sync.schedule() }
     }

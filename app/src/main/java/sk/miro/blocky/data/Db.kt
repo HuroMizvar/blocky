@@ -301,6 +301,12 @@ abstract class BlockyDao {
     @Query("DELETE FROM receipts WHERE source = :source")
     abstract suspend fun deleteBySource(source: String): Int
 
+    @Query("SELECT COUNT(*) FROM receipts WHERE source != :source")
+    abstract fun countExceptSource(source: String): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM receipts")
+    abstract suspend fun receiptCountOnce(): Int
+
     @Query("SELECT COUNT(*) FROM receipts WHERE source = :source")
     abstract fun countBySource(source: String): Flow<Int>
 

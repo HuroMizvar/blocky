@@ -20,11 +20,12 @@ import kotlin.random.Random
 object DemoData {
     const val SOURCE = "DEMO"
 
-    private const val LIDL = "Lidl Slovenská republika, v.o.s."
-    private const val BILLA = "BILLA s.r.o."
-    private const val TESCO = "TESCO STORES SR, a.s."
-    private const val KAUFLAND = "Kaufland Slovenská republika v.o.s."
-    private const val FRESH = "FRESH obchod pri dome"
+    // vymyslené obchody – testovacie bločky nesmú vyzerať ako doklady skutočných firiem
+    private const val LIDL = "Supermarket Zelený košík"
+    private const val BILLA = "Potraviny Pod lipou"
+    private const val TESCO = "Hypermarket Veľký vozík"
+    private const val KAUFLAND = "Supermarket Plná taška"
+    private const val FRESH = "Večierka Na rohu"
 
     private val storePrice = mapOf(LIDL to 0.92, KAUFLAND to 0.97, TESCO to 1.0, BILLA to 1.12, FRESH to 1.2)
 
@@ -42,14 +43,14 @@ object DemoData {
         P("Toaletný papier 8ks", 399, 0.08), P("Jar 900ml", 279, 0.05), P("Pizza šunková mrazená", 299, 0.12)
     )
 
-    private const val BEER = "Pivo Zlatý Bažant 10% 0,5l plech"
+    private const val BEER = "Pivo svetlé 10% 0,5l plech"
     private const val DEPOSIT = "Záloha plechovka"
 
     private fun millis(d: LocalDate, rnd: Random): Long =
         d.atTime(LocalTime.of(rnd.nextInt(8, 20), rnd.nextInt(0, 60))).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
     private fun receipt(id: String, merchant: String, at: Long, items: List<ParsedItem>) = ParsedReceipt(
-        receiptId = id, merchantName = merchant, merchantIco = null, storeAddress = "Testovacia 1, Bratislava",
+        receiptId = id, merchantName = merchant, merchantIco = null, storeAddress = "Testovacia 1, Mestečko",
         issuedAt = at, totalCents = items.sumOf { it.priceCents }, items = items, rawJson = ""
     )
 
@@ -104,22 +105,41 @@ object DemoData {
             }
             if (!d.isBefore(nextFuel)) {
                 val liters = rnd.nextInt(30, 46).toDouble()
-                out += receipt(id(), "SLOVNAFT, a.s.", millis(d, rnd), listOf(item("NATURAL 95", liters, 162)))
+                out += receipt(id(), "Čerpacia stanica Kilometer", millis(d, rnd), listOf(item("Benzín 95", liters, 162)))
                 nextFuel = d.plusDays(rnd.nextLong(11, 17))
             }
             if (rnd.nextDouble() < 0.07) {
-                out += receipt(id(), "McDonald's Slovakia", millis(d, rnd),
-                    listOf(item("Big Mac Menu", 1.0, 899), item("Coca-Cola 0,4l", 1.0, 249)))
+                out += receipt(id(), "Bistro Na korze", millis(d, rnd),
+                    listOf(item("Burger menu", 1.0, 899), item("Kola 0,4l", 1.0, 249)))
             }
             if (d.dayOfMonth == 12) {
-                out += receipt(id(), "Dr.Max lekáreň", millis(d, rnd),
+                out += receipt(id(), "Lekáreň U sovy", millis(d, rnd),
                     listOf(item("Paralen 500 24tbl", 1.0, 389), item("Vitamín C 500mg", 1.0, 599)))
-                out += receipt(id(), "dm drogerie markt s.r.o.", millis(d, rnd),
+                out += receipt(id(), "Drogéria Mydlinka", millis(d, rnd),
                     listOf(item("Šampón Nivea 400ml", 1.0, 449), item("Zubná pasta Colgate", 1.0, 229)))
             }
             d = d.plusDays(1)
         }
         return out
+    }
+
+    /** Ukážkové mesačné rozpočty k testovacím bločkom (nastavia sa len kategóriám bez vlastného rozpočtu). */
+    val budgets: Map<sk.miro.blocky.domain.Category, Long> = mapOf(
+        sk.miro.blocky.domain.Category.MLIECNE to 4_000, sk.miro.blocky.domain.Category.PECIVO to 2_500,
+        sk.miro.blocky.domain.Category.OVOCIE_ZELENINA to 3_500, sk.miro.blocky.domain.Category.MASO to 5_000,
+        sk.miro.blocky.domain.Category.ALKOHOL to 2_000, sk.miro.blocky.domain.Category.SLADKOSTI to 1_500,
+        sk.miro.blocky.domain.Category.PHM to 12_000, sk.miro.blocky.domain.Category.DROGERIA to 2_000
+    )
+
+    /** id ukážkových fixných výdavkov začínajú týmto – nesynchronizujú sa a dajú sa zmazať naraz */
+    const val FIXED_PREFIX = "demo-"
+
+    fun fixed(today: LocalDate = LocalDate.now()): List<sk.miro.blocky.domain.FixedExpense> {
+        val since = sk.miro.blocky.domain.Period.of(today).minusMonths(3).toString()
+        return listOf(
+            sk.miro.blocky.domain.FixedExpense("${FIXED_PREFIX}najom", "Nájom (test)", "Nájomné", 55_000, 5, since),
+            sk.miro.blocky.domain.FixedExpense("${FIXED_PREFIX}internet", "Internet (test)", "Predplatné", 1_999, 15, since)
+        )
     }
 
     /** Simulovaný eKasa server: na ľubovoľný QR vráti náhodný nákup s aktuálnym časom. */

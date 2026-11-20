@@ -521,6 +521,57 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _testMsg.value = "Nahraných $n demo bločkov (aktuálny + 3 predchádzajúce mesiace)."
     }
 
+    // ---------- testovacie bločky pre nového používateľa ----------
+
+    private val _demoState = MutableStateFlow(repo.demoState)
+    /** null = neponúknuté, "on", "off", "removed" */
+    val demoState: StateFlow<String?> = _demoState
+    /** okno pri prvom spustení */
+    private val _welcome = MutableStateFlow(false)
+    val welcome: StateFlow<Boolean> = _welcome
+    /** okno po prvom vlastnom bločku */
+    private val _askRemoveDemo = MutableStateFlow(false)
+    val askRemoveDemo: StateFlow<Boolean> = _askRemoveDemo
+    private val _demoBusy = MutableStateFlow(false)
+    val demoBusy: StateFlow<Boolean> = _demoBusy
+
+    init {
+        viewModelScope.launch {
+            // ponuka len pri úplne novej inštalácii; kto už bločky má, nájde voľbu v Nastaveniach
+            if (repo.demoState == null) {
+                if (repo.receiptCountOnce() == 0) _welcome.value = true
+                else { repo.demoState = "off"; _demoState.value = "off" }
+            }
+        }
+        viewModelScope.launch {
+            combine(repo.ownCount, repo.demoCount) { own, demo -> own to demo }.collect { (own, demo) ->
+                if (own > 0 && demo > 0 && !repo.demoAskedAfterReal) { repo.demoAskedAfterReal = true; _askRemoveDemo.value = true }
+            }
+        }
+    }
+
+    fun loadTestData() = viewModelScope.launch {
+        _welcome.value = false; _demoBusy.value = true
+        repo.loadTestData()
+        _demoState.value = repo.demoState; _demoBusy.value = false
+    }
+
+    /** „Nechcem vyskúšať“ – nič sa nenahrá; [forever] = ponuka zmizne aj z Nastavení */
+    fun declineTestData(forever: Boolean) {
+        _welcome.value = false
+        repo.demoState = if (forever) "removed" else "off"
+        _demoState.value = repo.demoState
+    }
+
+    fun removeTestData(forever: Boolean) = viewModelScope.launch {
+        _askRemoveDemo.value = false; _demoBusy.value = true
+        repo.removeTestData(forever)
+        _demoState.value = repo.demoState; _demoBusy.value = false
+    }
+
+    fun dismissWelcome() { _welcome.value = false }
+    fun keepTestData() { _askRemoveDemo.value = false }
+
     fun clearDemo() = viewModelScope.launch {
         _testMsg.value = "Zmazaných ${repo.clearDemo()} demo bločkov."
     }
