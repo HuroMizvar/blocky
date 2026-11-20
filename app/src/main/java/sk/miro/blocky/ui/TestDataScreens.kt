@@ -196,4 +196,3 @@ fun TestDataSection(vm: MainViewModel) {
     }
 }
 
-private fun receiptWord(n: Int) = when { n == 1 -> "bloček"; n in 2..4 -> "bločky"; else -> "bločkov" }
