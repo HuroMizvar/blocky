@@ -187,8 +187,12 @@ fun TestDataSection(vm: MainViewModel) {
             }
         }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp), color = Pal.Green)
-        TextButton(onClick = { confirm = true }, Modifier.padding(top = 4.dp), enabled = !busy) {
-            Text("Úplne odstrániť testovacie bločky z aplikácie a nastavení", color = Pal.Muted, fontSize = 13.sp)
+        // úplné odstránenie – tlačidlo s červeným okrajom (rovnaký štýl ako „Vymazať testovacie bločky“)
+        OutlinedButton(onClick = { confirm = true }, Modifier.fillMaxWidth().padding(top = 10.dp), enabled = !busy,
+            shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.5.dp, DangerRed),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+            Text("Úplne odstrániť testovacie bločky z aplikácie a nastavení", color = DangerRed, fontWeight = FontWeight.Bold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
     confirm?.let { forever ->
