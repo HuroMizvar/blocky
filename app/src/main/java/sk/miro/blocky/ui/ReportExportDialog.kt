@@ -141,7 +141,7 @@ fun ReportExportDialog(vm: MainViewModel, onDismiss: () -> Unit) {
                             withContext(Dispatchers.IO) { Downloads.save(context, name, Downloads.XLSX) { it.write(b) } }
                         }.getOrNull()
                         busy = false
-                        if (uri != null) { toast("Uložené do Stiahnuté → Bločky"); onDismiss() }
+                        if (uri != null) { toast("Uložené medzi stiahnuté súbory"); onDismiss() }
                         else toast("Report sa nepodarilo uložiť")
                     }
                     }

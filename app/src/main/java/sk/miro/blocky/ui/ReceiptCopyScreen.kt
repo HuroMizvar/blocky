@@ -29,8 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -43,7 +41,8 @@ import sk.miro.blocky.domain.ReceiptCopy
  * (vo všetkých farebných témach), aby ho predavač spoznal. Dá sa stiahnuť ako PDF alebo zdieľať.
  */
 @Composable
-fun ReceiptCopyDialog(vm: MainViewModel, id: Long, onDismiss: () -> Unit) {
+fun ReceiptCopyScreen(vm: MainViewModel, id: Long, onDismiss: () -> Unit) {
+    androidx.activity.compose.BackHandler(onBack = onDismiss)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var copy by remember { mutableStateOf<ReceiptCopy?>(null) }
@@ -64,10 +63,8 @@ fun ReceiptCopyDialog(vm: MainViewModel, id: Long, onDismiss: () -> Unit) {
         }
     }
 
-    // celá obrazovka; tlačidlá a hlavička nad systémovými lištami (navigácia, stavový riadok)
-    Dialog(onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Column(Modifier.fillMaxSize().background(Pal.Bg).systemBarsPadding()) {
+    run {
+        Column(Modifier.fillMaxSize().background(Pal.Bg).statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Zavrieť") }
                 Text("Elektronický bloček", Modifier.weight(1f), fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -98,7 +95,7 @@ fun ReceiptCopyDialog(vm: MainViewModel, id: Long, onDismiss: () -> Unit) {
                         val uri = withContext(Dispatchers.IO) { runCatching { ReceiptCopies.saveToDownloads(context, c) }.getOrNull() }
                         when {
                             uri != null -> Toast.makeText(context,
-                                sk.miro.blocky.domain.I18n.tr("Uložené do Stiahnuté → Bločky"), Toast.LENGTH_LONG).show()
+                                sk.miro.blocky.domain.I18n.tr("Uložené medzi stiahnuté súbory"), Toast.LENGTH_LONG).show()
                             Build.VERSION.SDK_INT < 29 -> createDoc.launch(c.fileName())
                             else -> Toast.makeText(context, sk.miro.blocky.domain.I18n.tr("Bloček sa nepodarilo uložiť"),
                                 Toast.LENGTH_SHORT).show()

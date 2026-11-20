@@ -273,7 +273,8 @@ fun ReceiptDetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
     var confirmDelete by remember { mutableStateOf(false) }
     var changeType by remember { mutableStateOf(false) }
     var showCopy by remember { mutableStateOf(false) }
-    if (showCopy) ReceiptCopyDialog(vm, id) { showCopy = false }
+    // elektronický bloček – celá obrazovka v okne aplikácie (nie dialóg), aby tlačidlá boli nad navigačnou lištou
+    if (showCopy) { ReceiptCopyScreen(vm, id) { showCopy = false }; return }
 
     Scaffold(containerColor = Pal.Bg) { pad ->
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp,

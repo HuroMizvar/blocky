@@ -111,4 +111,5 @@ T.update({
  'Položky':'Items',
  'Bločky':'Receipts',
  'Obchody':'Stores',
+ 'Uložené medzi stiahnuté súbory':'Saved to Downloads',
 })
