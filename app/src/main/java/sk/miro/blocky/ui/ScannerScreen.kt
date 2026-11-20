@@ -133,6 +133,7 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
     Box(Modifier.fillMaxSize().background(Pal.Camera)) {
         if (granted) {
             CameraPreview(onCamera = { camera = it }) { raw -> vm.onQrFast(raw) }
+            ScanScrim()
             ScanFrame(Modifier.align(Alignment.Center).offset(y = (-100).dp))
         } else {
             Column(Modifier.align(Alignment.Center).offset(y = (-100).dp).padding(24.dp),
@@ -193,6 +194,26 @@ fun ScannerScreen(vm: MainViewModel, onOpenApp: () -> Unit, onOpenReceipt: (Long
 
     if (manual) ManualEntryDialog(onDismiss = { manual = false }) { m, c, cat ->
         vm.addManual(m, c, cat, System.currentTimeMillis()); manual = false
+    }
+}
+
+/**
+ * Stmavené okolie zameriavača – pozornosť ostane na štvorci s QR kódom.
+ * (Skutočné rozmazanie živého obrazu kamery Android spoľahlivo nepodporuje, preto jemné stmavenie.)
+ */
+@Composable
+private fun ScanScrim() {
+    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+        val side = 240.dp.toPx()
+        val cx = size.width / 2f
+        val cy = size.height / 2f - 100.dp.toPx()
+        val hole = Path().apply {
+            addRoundRect(androidx.compose.ui.geometry.RoundRect(cx - side / 2, cy - side / 2, cx + side / 2, cy + side / 2,
+                androidx.compose.ui.geometry.CornerRadius(18.dp.toPx())))
+        }
+        val all = Path().apply { addRect(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height)) }
+        val scrim = Path.combine(androidx.compose.ui.graphics.PathOperation.Difference, all, hole)
+        drawPath(scrim, Color.Black.copy(alpha = 0.5f))
     }
 }
 

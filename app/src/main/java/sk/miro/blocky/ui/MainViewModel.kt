@@ -108,7 +108,45 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setBudget(c: Category, cents: Long?) = viewModelScope.launch { repo.setBudget(c, cents) }
 
-    fun export(onReady: (File) -> Unit) = viewModelScope.launch { onReady(repo.exportCsv(rows.value)) }
+    /** dátum prvého bločku (pre „celá história“ v reporte) */
+    fun firstReceiptDate(): java.time.LocalDate? = BudgetPlanner.firstDate(rows.value)
+
+    /**
+     * Report do Excelu za obdobie [from]–[to] (vrátane): súhrn podľa kategórií, položky, bločky, obchody.
+     * Rozpočty sa prepočítajú na dĺžku obdobia; zálohy (vratné obaly) sa nerátajú, ako v Prehľade.
+     */
+    suspend fun reportSheets(from: java.time.LocalDate, to: java.time.LocalDate, withFixed: Boolean): List<Xlsx.Sheet> =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val zone = java.time.ZoneId.systemDefault()
+            fun day(ms: Long) = java.time.Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
+            val lines = rows.value.filter { val d = day(it.issuedAt); !d.isBefore(from) && !d.isAfter(to) }
+                .filter { Category.fromName(it.category) != Category.ZALOHY }
+                .map { ReportExport.Line(it.receiptDbId, it.issuedAt, it.merchantName, it.name, it.quantity, it.priceCents, it.category) }
+            // mesačný rozpočet × podiel dní obdobia v každom rozpočtovom mesiaci
+            val months = generateSequence(Period.of(from)) { it.plusMonths(1) }.takeWhile { !it.isAfter(Period.of(to)) }.toList()
+            val budgets = state.value.budgets.filterKeys { it.active && it != Category.ZALOHY && it != Category.ZLAVY && it != Category.FIXNE }
+                .mapKeys { it.key.name }
+                .mapValues { (_, monthly) ->
+                    months.sumOf { m ->
+                        val a = maxOf(Period.start(m), from); val b = minOf(Period.end(m), to)
+                        val days = if (b.isBefore(a)) 0L else java.time.temporal.ChronoUnit.DAYS.between(a, b) + 1
+                        monthly * days / Period.length(m)
+                    }
+                }
+            val today = java.time.LocalDate.now()
+            val fixed = if (!withFixed) null else months.flatMap { m ->
+                FixedExpenses.payments(FixedExpenses.list.value, m, minOf(today, to))
+                    .filter { !it.date.isBefore(from) && !it.date.isAfter(to) }
+                    .map { ReportExport.Fixed(it.date, it.expense.name, it.expense.kind, it.cents) }
+            }
+            val groups = CATEGORY_GROUPS
+            ReportExport.build(lines, from, to, budgets, fixed,
+                label = { I18n.tr(Category.fromName(it).label) },
+                group = { c -> I18n.tr(groups.firstOrNull { g -> g.second.any { it.name == c } }?.first ?: "Ostatné") },
+                tr = { I18n.tr(it) })
+        }
+
+
 
     // ---------- Rýchle skenovanie ----------
     private var lastRaw: String? = null
@@ -450,6 +488,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _backupMsg.value = "Automatickú zálohu sa nepodarilo nastaviť: ${e.message}"
         }
         _backupBusy.value = false
+        _autoBackup.value = Backup.autoState(getApplication())
+    }
+
+    fun setAutoBackupDays(days: Int) {
+        Backup.setAutoDays(getApplication(), days)
         _autoBackup.value = Backup.autoState(getApplication())
     }
 

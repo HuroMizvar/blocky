@@ -124,10 +124,27 @@ object Backup {
 
     private fun cfg(context: Context) = context.getSharedPreferences("backup", Context.MODE_PRIVATE)
 
-    data class AutoState(val enabled: Boolean, val folder: String?, val lastAt: Long, val lastError: String?)
+    data class AutoState(val enabled: Boolean, val folder: String?, val lastAt: Long, val lastError: String?, val everyDays: Int = 7)
+
+    /** Ponuka frekvencie automatickej zálohy (počet dní). */
+    val INTERVALS = listOf(1, 2, 3, 7, 14, 30)
 
     fun autoState(context: Context): AutoState = cfg(context).let {
-        AutoState(it.getString("tree", null) != null, it.getString("folderName", null), it.getLong("lastAt", 0), it.getString("lastError", null))
+        AutoState(it.getString("tree", null) != null, it.getString("folderName", null), it.getLong("lastAt", 0),
+            it.getString("lastError", null), it.getInt("everyDays", 7))
+    }
+
+    private fun schedule(context: Context, days: Int) {
+        val req = PeriodicWorkRequestBuilder<BackupWorker>(days.toLong().coerceIn(1, 90), TimeUnit.DAYS)
+            .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build()).build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(BackupWorker.NAME, ExistingPeriodicWorkPolicy.UPDATE, req)
+    }
+
+    /** Zmena frekvencie automatickej zálohy; ak je zapnutá, hneď sa preplánuje. */
+    fun setAutoDays(context: Context, days: Int) {
+        val c = cfg(context)
+        c.edit().putInt("everyDays", days).apply()
+        if (c.getString("tree", null) != null) schedule(context, days)
     }
 
     /** Heslo záloh uložené v telefóne (chránené Android Keystore) – používa sa pre každú zálohu. */
@@ -143,9 +160,7 @@ object Backup {
             android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         cfg(context).edit().putString("tree", tree.toString()).putString("folderName", folderName)
             .remove("lastError").apply()
-        val req = PeriodicWorkRequestBuilder<BackupWorker>(7, TimeUnit.DAYS)
-            .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build()).build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(BackupWorker.NAME, ExistingPeriodicWorkPolicy.UPDATE, req)
+        schedule(context, cfg(context).getInt("everyDays", 7))
     }
 
     fun disableAuto(context: Context) {
@@ -293,7 +308,7 @@ object Backup {
     }
 }
 
-/** Týždenná automatická záloha (len ak ju používateľ zapol a vybral priečinok). */
+/** Automatická záloha v zvolenej frekvencii (len ak ju používateľ zapol a vybral priečinok). */
 class BackupWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result = try {
         Backup.runAuto(applicationContext); Result.success()

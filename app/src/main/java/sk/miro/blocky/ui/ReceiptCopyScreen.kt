@@ -64,8 +64,10 @@ fun ReceiptCopyDialog(vm: MainViewModel, id: Long, onDismiss: () -> Unit) {
         }
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(Pal.Bg)) {
+    // celá obrazovka; tlačidlá a hlavička nad systémovými lištami (navigácia, stavový riadok)
+    Dialog(onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Column(Modifier.fillMaxSize().background(Pal.Bg).systemBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Zavrieť") }
                 Text("Elektronický bloček", Modifier.weight(1f), fontSize = 18.sp, fontWeight = FontWeight.Bold)

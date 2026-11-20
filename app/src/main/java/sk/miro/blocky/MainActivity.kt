@@ -93,6 +93,10 @@ class MainActivity : ComponentActivity() {
 
                 HouseholdDialogs(vm)
 
+                // report do Excelu (Prehľad, Bločky, Nastavenia → Súkromie)
+                var showReport by remember { mutableStateOf(false) }
+                if (showReport) ReportExportDialog(vm) { showReport = false }
+
                 // Po návrate z pozadia (>1 min) vždy otvoriť skener
                 val reset by returnToScan
                 LaunchedEffect(reset) {
@@ -105,8 +109,8 @@ class MainActivity : ComponentActivity() {
                     Tab.entries.forEach { t ->
                         composable(t.route) {
                             val actions: @Composable RowScope.() -> Unit = {
-                                if (t == Tab.REPORT || t == Tab.RECEIPTS) IconButton(onClick = ::exportCsv) {
-                                    Icon(Icons.Default.IosShare, "Exportovať CSV", tint = Pal.Ink)
+                                if (t == Tab.REPORT || t == Tab.RECEIPTS) IconButton(onClick = { showReport = true }) {
+                                    Icon(Icons.Default.IosShare, "Report do Excelu", tint = Pal.Ink)
                                 }
                                 IconButton(onClick = { nav.navigate("settings") }) {
                                     BadgedBox(badge = { if (hasUpdate || mock) Badge(containerColor = Pal.Green) }) {
@@ -126,7 +130,11 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onScan = { nav.navigate("scan") { popUpTo("scan") { inclusive = false }; launchSingleTop = true } })
                                 }
-                            ) { pad ->
+                            ) { pad0 ->
+                                // obsah sa nesmie posúvať pod stavový riadok (čas, signál, batéria):
+                                // horný okraj ostane plný v farbe pozadia a zoznam sa oreže pod ním
+                                val pad = PaddingValues(bottom = pad0.calculateBottomPadding())
+                                Box(Modifier.fillMaxSize().background(Pal.Bg).padding(top = pad0.calculateTopPadding())) {
                                 when (t) {
                                     Tab.REPORT -> ReportScreen(vm, pad,
                                         onOpenTips = { nav.navigate(Tab.TIPS.route) { popUpTo("scan") { saveState = true }; launchSingleTop = true } },
@@ -138,10 +146,11 @@ class MainActivity : ComponentActivity() {
                                     Tab.RECEIPTS -> ReceiptsScreen(vm, pad, onOpen = { id -> nav.navigate("receipt/$id") }, actions = actions)
                                     Tab.BUDGETS -> BudgetsScreen(vm, pad, actions)
                                 }
+                                }
                             }
                         }
                     }
-                    composable("settings") { SettingsScreen(vm, onBack = { nav.popBackStack() }, onExport = ::exportCsv) }
+                    composable("settings") { SettingsScreen(vm, onBack = { nav.popBackStack() }, onExport = { showReport = true }) }
                     composable("scan") {
                         ScannerScreen(vm, onOpenApp = {
                             nav.navigate(Tab.REPORT.route) { launchSingleTop = true }
@@ -229,16 +238,4 @@ class MainActivity : ComponentActivity() {
     private fun Intent.streamUris(): List<Uri> =
         (if (android.os.Build.VERSION.SDK_INT >= 33) getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
         else getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)) ?: emptyList()
-
-    private fun exportCsv() {
-        vm.export { file ->
-            val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
-            val send = Intent(Intent.ACTION_SEND).apply {
-                type = "text/csv"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            startActivity(Intent.createChooser(send, "Exportovať výdavky"))
-        }
-    }
 }

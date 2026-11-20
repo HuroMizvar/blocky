@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sk.miro.blocky.data.EkasaClient
+import sk.miro.blocky.data.Backup
 import sk.miro.blocky.domain.FixedExpenses
 import sk.miro.blocky.domain.FixedExpenses.Frequency
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,8 +60,6 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onExport: () -> Unit) 
                 when (tab) {
                     0 -> {
                         HouseholdProfileSection(vm)
-                        HorizontalDivider(Modifier.padding(top = 20.dp))
-                        FixedExpensesSection(vm)
                         HorizontalDivider(Modifier.padding(top = 20.dp))
                         HouseholdSection(vm)
                     }
@@ -227,7 +226,7 @@ private fun PrivacySection(vm: MainViewModel, onExport: () -> Unit, onDeleted: (
     }
     GovSourceNote(Modifier.padding(top = 12.dp))
     Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = onExport, shape = RoundedCornerShape(14.dp)) { Text("Exportovať dáta (CSV)") }
+        OutlinedButton(onClick = onExport, shape = RoundedCornerShape(14.dp)) { Text("Exportovať dáta (Excel)") }
         Button(onClick = { confirm = true }, shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Pal.Red)) { Text("Zmazať všetko") }
     }
@@ -324,6 +323,12 @@ private fun HouseholdProfileSection(vm: MainViewModel) {
 }
 
 
+/** Frekvencia automatickej zálohy slovom. */
+fun backupEvery(days: Int): String = when (days) {
+    1 -> "každý deň"; 7 -> "každý týždeň"; 14 -> "každé 2 týždne"; 30 -> "každý mesiac"
+    in 2..4 -> "každé $days dni"; else -> "každých $days dní"
+}
+
 /** Záloha do súboru, obnova, automatická záloha a kľúč domácnosti. */
 @Composable
 private fun BackupSection(vm: MainViewModel) {
@@ -403,7 +408,7 @@ private fun BackupSection(vm: MainViewModel) {
         HorizontalDivider(Modifier.padding(vertical = 12.dp), color = Pal.Track)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Automaticky každý týždeň", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("Automatická záloha", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 Text(if (auto.enabled) "Priečinok: ${auto.folder ?: "vybraný"}" +
                         (if (auto.lastAt > 0) " · posledná ${fmtDate(auto.lastAt)}" else "") +
                         (auto.lastError?.let { " · chyba: $it" } ?: "")
@@ -412,6 +417,18 @@ private fun BackupSection(vm: MainViewModel) {
             }
             Switch(checked = auto.enabled, onCheckedChange = { on -> if (on) pickTree.launch(null) else vm.disableAutoBackup() },
                 colors = SwitchDefaults.colors(checkedTrackColor = Pal.Green))
+        }
+        // ako často – dá sa zvoliť aj pred zapnutím
+        Box(Modifier.padding(top = 8.dp)) {
+            var open by remember { mutableStateOf(false) }
+            OutlinedButton(onClick = { open = true }, shape = RoundedCornerShape(14.dp)) {
+                Text("Ako často: ${backupEvery(auto.everyDays)}")
+            }
+            DropdownMenu(open, { open = false }) {
+                Backup.INTERVALS.forEach { d ->
+                    DropdownMenuItem(text = { Text(backupEvery(d)) }, onClick = { open = false; vm.setAutoBackupDays(d) })
+                }
+            }
         }
         Text("Priečinok v telefóne pri strate telefónu nepomôže – vyberte priečinok, ktorý sa zálohuje mimo telefónu " +
             "(napr. synchronizovaný s cloudom), alebo občas uložte zálohu ručne na Disk Google.",
@@ -510,9 +527,9 @@ private fun restartApp(ctx: android.content.Context) {
 }
 
 
-/** Fixné výdavky (hypotéka, úver, leasing, nájomné…) – počítajú sa zvlášť od bežných výdavkov. */
+/** Fixné výdavky (hypotéka, úver, leasing, nájomné…) – počítajú sa zvlášť od bežných výdavkov. Zobrazené v Rozpočtoch. */
 @Composable
-private fun FixedExpensesSection(vm: MainViewModel) {
+fun FixedExpensesSection(vm: MainViewModel) {
     val list by vm.fixedExpenses.collectAsState()
     var edit by remember { mutableStateOf<sk.miro.blocky.domain.FixedExpense?>(null) }
     var creating by remember { mutableStateOf(false) }

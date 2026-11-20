@@ -56,7 +56,7 @@ zálohe sa heslo uloží v telefóne chránené systémovým úložiskom kľúč
 
 ## 4. Vaše práva (GDPR)
 
-Máte právo na prístup k údajom, opravu, vymazanie, obmedzenie spracúvania, prenosnosť (export CSV v aplikácii)
+Máte právo na prístup k údajom, opravu, vymazanie, obmedzenie spracúvania, prenosnosť (export do Excelu v aplikácii)
 a podanie sťažnosti na Úrad na ochranu osobných údajov SR (dataprotection.gov.sk).
 Keďže údaje sú uložené vo vašom zariadení, väčšinu práv uplatníte priamo v aplikácii.
 

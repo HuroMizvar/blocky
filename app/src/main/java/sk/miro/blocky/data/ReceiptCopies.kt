@@ -1,15 +1,11 @@
 package sk.miro.blocky.data
 
-import android.content.ContentValues
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.common.BitMatrix
@@ -146,25 +142,9 @@ object ReceiptCopies {
             c.drawRect(x + i * cell, y + j * cell, x + (i + 1) * cell + 0.2f, y + (j + 1) * cell + 0.2f, p)
     }
 
-    /** Uloží PDF do Stiahnutých súborov (priečinok Bločky). Vráti adresu súboru alebo null pri chybe. */
-    fun saveToDownloads(context: Context, copy: ReceiptCopy): Uri? {
-        val name = copy.fileName()
-        return if (Build.VERSION.SDK_INT >= 29) {
-            val cv = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, name)
-                put(MediaStore.Downloads.MIME_TYPE, "application/pdf")
-                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Bločky")
-                put(MediaStore.Downloads.IS_PENDING, 1)
-            }
-            val cr = context.contentResolver
-            val uri = cr.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv) ?: return null
-            runCatching {
-                cr.openOutputStream(uri)!!.use { writePdf(copy, it) }
-                cr.update(uri, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
-                uri
-            }.getOrElse { cr.delete(uri, null, null); null }
-        } else null   // Android 8–9: uloženie cez výber miesta (ACTION_CREATE_DOCUMENT) v obrazovke
-    }
+    /** Uloží PDF do Stiahnutých súborov (priečinok Bločky). Vráti adresu súboru alebo null (Android 8–9, chyba). */
+    fun saveToDownloads(context: Context, copy: ReceiptCopy): Uri? =
+        Downloads.save(context, copy.fileName(), "application/pdf") { writePdf(copy, it) }
 
     /** Súbor na zdieľanie (cache, sprístupnený cez FileProvider). */
     fun shareFile(context: Context, copy: ReceiptCopy): File {

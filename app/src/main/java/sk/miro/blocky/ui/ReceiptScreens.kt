@@ -582,6 +582,8 @@ fun BudgetsScreen(vm: MainViewModel, contentPadding: PaddingValues, actions: @Co
                     Text("Nová kategória", color = Pal.Green, fontWeight = FontWeight.Bold)
                 }
             }
+            Spacer(Modifier.height(8.dp))
+            FixedExpensesSection(vm)
         }
     }
 

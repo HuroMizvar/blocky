@@ -12,7 +12,7 @@ a navrhne, kde ušetriť.
 | Reklamy, analytika, AI | Žiadne knižnice na reklamy ani analytiku; reklamné ID výslovne odstránené z manifestu; tipy počíta pravidlový kód, nie AI. |
 | Kamera | QR číta ZXing priamo v telefóne (bez Google ML Kit / Play služieb). |
 | Sieť | Len HTTPS: (1) eKasa Finančnej správy SR – ID dokladu → položky, (2) GitHub – číslo najnovšej verzie (vypínateľné). |
-| GDPR | Export (CSV) a „Zmazať všetko“ v Nastaveniach. Dáta spracúva len používateľ na svojom zariadení. |
+| GDPR | Export (Excel) a „Zmazať všetko“ v Nastaveniach. Dáta spracúva len používateľ na svojom zariadení. |
 | AI analýza | Aplikácia sama nič neodosiela. Pripraví textový súhrn (súčty po kategóriách, bez adries/IČO/ID bločkov), používateľ ho skontroluje a sám zdieľa do AI aplikácie podľa výberu (`domain/AiExport.kt`). |
 
 Ikony kategórií: [Phosphor Icons](https://phosphoricons.com) (MIT), písmo: Plus Jakarta Sans (OFL) – licencie v `licenses/`.
@@ -51,7 +51,7 @@ alebo pri offline doklade, ktorý ešte nie je v eKasa, to aplikácia skúša au
 | Farebné témy | Pokojný papier (predvolená), Svieža zelená, Nočný režim – `AppTheme` / `Pal` v Components.kt; ukladá sa len v zariadení |
 | Vyhľadávanie | Bločky podľa obchodu aj položiek, so súčtom nájdených položiek |
 | Nastavenia | Záložky: Domácnosť · Aktualizácie · Súkromie a dáta · Nastavenie aplikácie (jazyk, téma, AI) |
-| Export | CSV (oddeľovač `;`, UTF‑8 – otvorí sa priamo v Exceli) |
+| Export | Report .xlsx (Prehľad, Položky, Bločky, Obchody) za zvolené obdobie |
 | Ručný záznam | Výdavok bez QR (trh, služby) |
 
 Všetky dáta sú len v telefóne (Room/SQLite). Sieť sa používa iba na dotaz do eKasa.
